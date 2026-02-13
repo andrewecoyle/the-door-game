@@ -108,7 +108,7 @@ export class CardDialog extends Phaser.GameObjects.Container {
     // Message
     const message = this.scene.add.text(0, -80, this.config.message, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '7px',
+      fontSize: '8px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,
@@ -178,7 +178,7 @@ export class CardDialog extends Phaser.GameObjects.Container {
     // Message
     const message = this.scene.add.text(0, -80, this.config.message, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '7px',
+      fontSize: '8px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,
@@ -254,7 +254,7 @@ export class CardDialog extends Phaser.GameObjects.Container {
 
     const descText = this.scene.add.text(0, 10, description, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '7px',
+      fontSize: '8px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,
@@ -330,7 +330,7 @@ export class CardDialog extends Phaser.GameObjects.Container {
     container.add(text);
 
     container.setInteractive(
-      new Phaser.Geom.Rectangle(-25, -20, 50, 40),
+      new Phaser.Geom.Rectangle(-30, -25, 60, 50),
       Phaser.Geom.Rectangle.Contains
     );
 
@@ -570,7 +570,7 @@ export class CardDialog extends Phaser.GameObjects.Container {
     if (isDisabled) {
       const disabledText = this.scene.add.text(0, 65, 'UNAVAILABLE', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '6px',
+        fontSize: '8px',
         color: '#ff0000',
         stroke: '#000000',
         strokeThickness: 2,

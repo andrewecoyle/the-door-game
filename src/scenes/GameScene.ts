@@ -13,6 +13,7 @@ import { GAME_CONSTANTS } from '../config/constants';
 import { Card, CardChoice, Player } from '../types/game.types';
 import EventBus from '../events/EventBus';
 import { ChaosResult } from './ChaosMinigameScene';
+import { isTouchDevice, actionPrompt } from '../utils/input-helpers';
 
 interface GameSceneData {
   selectedCharacter: string;
@@ -162,8 +163,8 @@ export class GameScene extends Phaser.Scene {
     text.setOrigin(0.5);
     container.add(text);
 
-    const hitArea = new Phaser.Geom.Rectangle(-70, -20, 140, 40);
-    container.setSize(140, 40);
+    const hitArea = new Phaser.Geom.Rectangle(-80, -30, 160, 60);
+    container.setSize(160, 60);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
@@ -201,13 +202,32 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(100);
 
-    this.add
-      .text(10, this.cameras.main.height - 20, 'ESC: Menu', {
+    if (isTouchDevice()) {
+      // Touch menu button
+      const menuBtn = this.add.container(50, this.cameras.main.height - 25);
+      const menuBg = this.add.graphics();
+      menuBg.fillStyle(0x333355, 0.8);
+      menuBg.fillRoundedRect(-40, -15, 80, 30, 6);
+      menuBtn.add(menuBg);
+      const menuText = this.add.text(0, 0, 'MENU', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '6px',
+        fontSize: '8px',
         color: '#ffffff',
-      })
-      .setDepth(100);
+      }).setOrigin(0.5);
+      menuBtn.add(menuText);
+      menuBtn.setSize(80, 30);
+      menuBtn.setInteractive(new Phaser.Geom.Rectangle(-40, -15, 80, 30), Phaser.Geom.Rectangle.Contains);
+      menuBtn.on('pointerdown', () => { this.scene.start('MenuScene'); });
+      menuBtn.setDepth(100);
+    } else {
+      this.add
+        .text(10, this.cameras.main.height - 20, 'ESC: Menu', {
+          fontFamily: '"Press Start 2P", cursive',
+          fontSize: '8px',
+          color: '#ffffff',
+        })
+        .setDepth(100);
+    }
   }
 
   private startTurn(): void {
@@ -388,7 +408,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(1001);
 
       this.add
-        .text(centerX, centerY + 80, 'Press SPACE to return to menu', {
+        .text(centerX, centerY + 80, actionPrompt('TAP TO CONTINUE', 'Press SPACE to return to menu'), {
           fontFamily: '"Press Start 2P", cursive',
           fontSize: '10px',
           color: '#ffffff',
@@ -397,6 +417,10 @@ export class GameScene extends Phaser.Scene {
         .setDepth(1001);
 
       this.input.keyboard?.once('keydown-SPACE', () => {
+        this.scene.start('MenuScene');
+      });
+
+      this.input.once('pointerdown', () => {
         this.scene.start('MenuScene');
       });
     }

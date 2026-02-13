@@ -79,7 +79,7 @@ export class Board extends Phaser.GameObjects.Container {
         labelText = square.index === 0 ? 'BEGIN' : square.index.toString();
     }
 
-    const fontSize = square.type === 'normal' ? (square.index === 0 ? '7px' : '10px') : '8px';
+    const fontSize = square.type === 'normal' ? (square.index === 0 ? '8px' : '10px') : '8px';
     const yOffset = square.type === 'jail' ? 0 : square.type === 'normal' ? 0 : -25;
 
     const text = this.scene.add.text(square.x, square.y + yOffset, labelText, {
