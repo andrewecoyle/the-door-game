@@ -229,17 +229,21 @@ export class CardDialog extends Phaser.GameObjects.Container {
     isSelected: boolean
   ): void {
     const container = this.scene.add.container(x, y);
+    const optW = 200;
+    const optH = 160;
+    const optHalfW = optW / 2;
+    const optHalfH = optH / 2;
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(color, 1);
-    bg.fillRoundedRect(-90, -60, 180, 140, 12);
+    bg.fillRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
     bg.lineStyle(isSelected ? 4 : 2, isSelected ? 0xffff00 : 0x666666, 1);
-    bg.strokeRoundedRect(-90, -60, 180, 140, 12);
+    bg.strokeRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
     container.add(bg);
 
-    const titleText = this.scene.add.text(0, -35, title, {
+    const titleText = this.scene.add.text(0, -45, title, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '9px',
+      fontSize: '10px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3,
@@ -248,14 +252,14 @@ export class CardDialog extends Phaser.GameObjects.Container {
     titleText.setOrigin(0.5);
     container.add(titleText);
 
-    const descText = this.scene.add.text(0, 15, description, {
+    const descText = this.scene.add.text(0, 10, description, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '6px',
+      fontSize: '7px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,
       align: 'center',
-      wordWrap: { width: 160 },
+      wordWrap: { width: 180 },
     });
     descText.setOrigin(0.5);
     container.add(descText);
@@ -312,38 +316,38 @@ export class CardDialog extends Phaser.GameObjects.Container {
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(color, 1);
-    bg.fillRoundedRect(-20, -15, 40, 30, 6);
+    bg.fillRoundedRect(-25, -20, 50, 40, 8);
     bg.lineStyle(2, 0xffffff, 1);
-    bg.strokeRoundedRect(-20, -15, 40, 30, 6);
+    bg.strokeRoundedRect(-25, -20, 50, 40, 8);
     container.add(bg);
 
     const text = this.scene.add.text(0, 0, label, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '12px',
+      fontSize: '14px',
       color: '#ffffff',
     });
     text.setOrigin(0.5);
     container.add(text);
 
     container.setInteractive(
-      new Phaser.Geom.Rectangle(-20, -15, 40, 30),
+      new Phaser.Geom.Rectangle(-25, -20, 50, 40),
       Phaser.Geom.Rectangle.Contains
     );
 
     container.on('pointerover', () => {
       bg.clear();
       bg.fillStyle(color, 0.8);
-      bg.fillRoundedRect(-20, -15, 40, 30, 6);
+      bg.fillRoundedRect(-25, -20, 50, 40, 8);
       bg.lineStyle(3, 0xffff00, 1);
-      bg.strokeRoundedRect(-20, -15, 40, 30, 6);
+      bg.strokeRoundedRect(-25, -20, 50, 40, 8);
     });
 
     container.on('pointerout', () => {
       bg.clear();
       bg.fillStyle(color, 1);
-      bg.fillRoundedRect(-20, -15, 40, 30, 6);
+      bg.fillRoundedRect(-25, -20, 50, 40, 8);
       bg.lineStyle(2, 0xffffff, 1);
-      bg.strokeRoundedRect(-20, -15, 40, 30, 6);
+      bg.strokeRoundedRect(-25, -20, 50, 40, 8);
     });
 
     container.on('pointerdown', onClick);
@@ -490,7 +494,7 @@ export class CardDialog extends Phaser.GameObjects.Container {
     // Player selection buttons
     if (this.config.players) {
       const startY = -60;
-      const spacing = 35;
+      const spacing = 45;
 
       this.config.players.forEach((player, index) => {
         const y = startY + index * spacing;
@@ -522,20 +526,25 @@ export class CardDialog extends Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
 
     // Button background (larger for card-style)
+    const optW = 200;
+    const optH = 160;
+    const optHalfW = optW / 2;
+    const optHalfH = optH / 2;
+
     const bg = this.scene.add.graphics();
     const finalColor = isDisabled ? 0x444444 : color;
     const finalAlpha = isDisabled ? 0.5 : 1;
 
     bg.fillStyle(finalColor, finalAlpha);
-    bg.fillRoundedRect(-90, -60, 180, 140, 12);
+    bg.fillRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
     bg.lineStyle(isDisabled ? 2 : 3, isDisabled ? 0x666666 : 0xffffff, 1);
-    bg.strokeRoundedRect(-90, -60, 180, 140, 12);
+    bg.strokeRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
     container.add(bg);
 
     // Title
-    const titleText = this.scene.add.text(0, -35, title, {
+    const titleText = this.scene.add.text(0, -45, title, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '9px',
+      fontSize: '10px',
       color: isDisabled ? '#666666' : '#ffffff',
       stroke: '#000000',
       strokeThickness: 3,
@@ -545,21 +554,21 @@ export class CardDialog extends Phaser.GameObjects.Container {
     container.add(titleText);
 
     // Description
-    const descText = this.scene.add.text(0, 15, description, {
+    const descText = this.scene.add.text(0, 10, description, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '6px',
+      fontSize: '7px',
       color: isDisabled ? '#666666' : '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,
       align: 'center',
-      wordWrap: { width: 160 },
+      wordWrap: { width: 180 },
     });
     descText.setOrigin(0.5);
     container.add(descText);
 
     // Add "DISABLED" overlay if disabled
     if (isDisabled) {
-      const disabledText = this.scene.add.text(0, 60, 'UNAVAILABLE', {
+      const disabledText = this.scene.add.text(0, 65, 'UNAVAILABLE', {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '6px',
         color: '#ff0000',
@@ -574,25 +583,25 @@ export class CardDialog extends Phaser.GameObjects.Container {
     // Only make interactive if not disabled
     if (!isDisabled) {
       container.setInteractive(
-        new Phaser.Geom.Rectangle(-90, -60, 180, 140),
+        new Phaser.Geom.Rectangle(-optHalfW, -optHalfH, optW, optH),
         Phaser.Geom.Rectangle.Contains
       );
 
       container.on('pointerover', () => {
         bg.clear();
         bg.fillStyle(color, 0.8);
-        bg.fillRoundedRect(-90, -60, 180, 140, 12);
-        bg.lineStyle(4, 0xffff00, 1); // Yellow highlight
-        bg.strokeRoundedRect(-90, -60, 180, 140, 12);
+        bg.fillRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
+        bg.lineStyle(4, 0xffff00, 1);
+        bg.strokeRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
         container.setScale(1.05);
       });
 
       container.on('pointerout', () => {
         bg.clear();
         bg.fillStyle(color, 1);
-        bg.fillRoundedRect(-90, -60, 180, 140, 12);
+        bg.fillRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
         bg.lineStyle(3, 0xffffff, 1);
-        bg.strokeRoundedRect(-90, -60, 180, 140, 12);
+        bg.strokeRoundedRect(-optHalfW, -optHalfH, optW, optH, 12);
         container.setScale(1.0);
       });
 
@@ -650,38 +659,38 @@ export class CardDialog extends Phaser.GameObjects.Container {
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(color, 1);
-    bg.fillRoundedRect(-60, -15, 120, 30, 8);
+    bg.fillRoundedRect(-80, -20, 160, 40, 8);
     bg.lineStyle(2, 0xffffff, 1);
-    bg.strokeRoundedRect(-60, -15, 120, 30, 8);
+    bg.strokeRoundedRect(-80, -20, 160, 40, 8);
     button.add(bg);
 
     const btnText = this.scene.add.text(0, 0, text, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
+      fontSize: '10px',
       color: '#ffffff',
     });
     btnText.setOrigin(0.5);
     button.add(btnText);
 
     button.setInteractive(
-      new Phaser.Geom.Rectangle(-60, -15, 120, 30),
+      new Phaser.Geom.Rectangle(-80, -20, 160, 40),
       Phaser.Geom.Rectangle.Contains
     );
 
     button.on('pointerover', () => {
       bg.clear();
       bg.fillStyle(color, 0.8);
-      bg.fillRoundedRect(-60, -15, 120, 30, 8);
+      bg.fillRoundedRect(-80, -20, 160, 40, 8);
       bg.lineStyle(2, 0xffffff, 1);
-      bg.strokeRoundedRect(-60, -15, 120, 30, 8);
+      bg.strokeRoundedRect(-80, -20, 160, 40, 8);
     });
 
     button.on('pointerout', () => {
       bg.clear();
       bg.fillStyle(color, 1);
-      bg.fillRoundedRect(-60, -15, 120, 30, 8);
+      bg.fillRoundedRect(-80, -20, 160, 40, 8);
       bg.lineStyle(2, 0xffffff, 1);
-      bg.strokeRoundedRect(-60, -15, 120, 30, 8);
+      bg.strokeRoundedRect(-80, -20, 160, 40, 8);
     });
 
     button.on('pointerdown', onClick);
@@ -699,38 +708,38 @@ export class CardDialog extends Phaser.GameObjects.Container {
 
     const bg = this.scene.add.graphics();
     bg.fillStyle(0x444444, 1);
-    bg.fillRoundedRect(-200, -12, 400, 28, 8);
+    bg.fillRoundedRect(-210, -19, 420, 38, 8);
     bg.lineStyle(2, player.color, 1);
-    bg.strokeRoundedRect(-200, -12, 400, 28, 8);
+    bg.strokeRoundedRect(-210, -19, 420, 38, 8);
     button.add(bg);
 
     const btnText = this.scene.add.text(0, 0, `${player.name} - Lives: ${player.lives}`, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '7px',
+      fontSize: '8px',
       color: '#ffffff',
     });
     btnText.setOrigin(0.5);
     button.add(btnText);
 
     button.setInteractive(
-      new Phaser.Geom.Rectangle(-200, -12, 400, 28),
+      new Phaser.Geom.Rectangle(-210, -19, 420, 38),
       Phaser.Geom.Rectangle.Contains
     );
 
     button.on('pointerover', () => {
       bg.clear();
       bg.fillStyle(player.color, 0.3);
-      bg.fillRoundedRect(-200, -12, 400, 28, 8);
+      bg.fillRoundedRect(-210, -19, 420, 38, 8);
       bg.lineStyle(3, player.color, 1);
-      bg.strokeRoundedRect(-200, -12, 400, 28, 8);
+      bg.strokeRoundedRect(-210, -19, 420, 38, 8);
     });
 
     button.on('pointerout', () => {
       bg.clear();
       bg.fillStyle(0x444444, 1);
-      bg.fillRoundedRect(-200, -12, 400, 28, 8);
+      bg.fillRoundedRect(-210, -19, 420, 38, 8);
       bg.lineStyle(2, player.color, 1);
-      bg.strokeRoundedRect(-200, -12, 400, 28, 8);
+      bg.strokeRoundedRect(-210, -19, 420, 38, 8);
     });
 
     button.on('pointerdown', onClick);

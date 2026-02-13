@@ -39,10 +39,10 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   private displayCharacters(): void {
-    const startX = 100;
-    const startY = 150;
-    const spacingX = 200;
-    const spacingY = 220;
+    const startX = 130;
+    const startY = 170;
+    const spacingX = 210;
+    const spacingY = 230;
     const charsPerRow = 4;
 
     CHARACTERS.forEach((char, index) => {
@@ -64,21 +64,26 @@ export class CharacterSelectScene extends Phaser.Scene {
     const container = this.add.container(x, y);
 
     // Background card
+    const cardW = 180;
+    const cardH = 210;
+    const halfW = cardW / 2;
+    const halfH = cardH / 2;
+
     const cardBg = this.add.graphics();
     cardBg.fillStyle(GAME_CONSTANTS.COLORS.UI_DARK, 1);
-    cardBg.fillRect(-75, -90, 150, 180);
+    cardBg.fillRoundedRect(-halfW, -halfH, cardW, cardH, 8);
     cardBg.lineStyle(2, char.color, 1);
-    cardBg.strokeRect(-75, -90, 150, 180);
+    cardBg.strokeRoundedRect(-halfW, -halfH, cardW, cardH, 8);
     container.add(cardBg);
 
-    // Character sprite - much smaller to fit in card
-    const sprite = this.add.image(0, -30, char.id);
-    sprite.setScale(0.1); // Reduced from 0.4 to 0.1 for ~102px size
+    // Character sprite
+    const sprite = this.add.image(0, -25, char.id);
+    sprite.setScale(0.1);
     container.add(sprite);
 
     // Character name
     const nameText = this.add
-      .text(0, 40, char.displayName, {
+      .text(0, 50, char.displayName, {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '12px',
         color: '#ffffff',
@@ -88,36 +93,36 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Description
     const descText = this.add
-      .text(0, 65, char.description || '', {
+      .text(0, 78, char.description || '', {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '6px',
         color: '#99e550',
         align: 'center',
-        wordWrap: { width: 140 },
+        wordWrap: { width: 160 },
       })
       .setOrigin(0.5);
     container.add(descText);
 
     // Make interactive
-    const hitArea = new Phaser.Geom.Rectangle(-75, -90, 150, 180);
-    container.setSize(150, 180);
+    const hitArea = new Phaser.Geom.Rectangle(-halfW, -halfH, cardW, cardH);
+    container.setSize(cardW, cardH);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
       cardBg.clear();
       cardBg.fillStyle(GAME_CONSTANTS.COLORS.UI_DARK, 1);
-      cardBg.fillRect(-75, -90, 150, 180);
+      cardBg.fillRoundedRect(-halfW, -halfH, cardW, cardH, 8);
       cardBg.lineStyle(3, char.color, 1);
-      cardBg.strokeRect(-75, -90, 150, 180);
+      cardBg.strokeRoundedRect(-halfW, -halfH, cardW, cardH, 8);
     });
 
     container.on('pointerout', () => {
       if (this.selectedCharacterId !== char.id) {
         cardBg.clear();
         cardBg.fillStyle(GAME_CONSTANTS.COLORS.UI_DARK, 1);
-        cardBg.fillRect(-75, -90, 150, 180);
+        cardBg.fillRoundedRect(-halfW, -halfH, cardW, cardH, 8);
         cardBg.lineStyle(2, char.color, 1);
-        cardBg.strokeRect(-75, -90, 150, 180);
+        cardBg.strokeRoundedRect(-halfW, -halfH, cardW, cardH, 8);
       }
     });
 
@@ -161,12 +166,17 @@ export class CharacterSelectScene extends Phaser.Scene {
     color: number,
     lineWidth: number
   ): void {
+    const cardW = 180;
+    const cardH = 210;
+    const halfW = cardW / 2;
+    const halfH = cardH / 2;
+
     const cardBg = container.list[0] as Phaser.GameObjects.Graphics;
     cardBg.clear();
     cardBg.fillStyle(GAME_CONSTANTS.COLORS.UI_DARK, 1);
-    cardBg.fillRect(-75, -90, 150, 180);
+    cardBg.fillRoundedRect(-halfW, -halfH, cardW, cardH, 8);
     cardBg.lineStyle(lineWidth, color, 1);
-    cardBg.strokeRect(-75, -90, 150, 180);
+    cardBg.strokeRoundedRect(-halfW, -halfH, cardW, cardH, 8);
   }
 
   private createConfirmButton(): void {
@@ -180,34 +190,34 @@ export class CharacterSelectScene extends Phaser.Scene {
     // Button background
     const btnBg = this.add.graphics();
     btnBg.fillStyle(GAME_CONSTANTS.COLORS.SUCCESS, 1);
-    btnBg.fillRect(-100, -20, 200, 40);
+    btnBg.fillRoundedRect(-120, -25, 240, 50, 10);
     container.add(btnBg);
 
     // Button text
     const btnText = this.add
       .text(0, 0, 'START GAME', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '12px',
+        fontSize: '14px',
         color: '#000000',
       })
       .setOrigin(0.5);
     container.add(btnText);
 
     // Make interactive
-    const hitArea = new Phaser.Geom.Rectangle(-100, -20, 200, 40);
-    container.setSize(200, 40);
+    const hitArea = new Phaser.Geom.Rectangle(-120, -25, 240, 50);
+    container.setSize(240, 50);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.UI_LIGHT, 1);
-      btnBg.fillRect(-100, -20, 200, 40);
+      btnBg.fillRoundedRect(-120, -25, 240, 50, 10);
     });
 
     container.on('pointerout', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.SUCCESS, 1);
-      btnBg.fillRect(-100, -20, 200, 40);
+      btnBg.fillRoundedRect(-120, -25, 240, 50, 10);
     });
 
     container.on('pointerdown', () => {

@@ -151,31 +151,31 @@ export class GameScene extends Phaser.Scene {
 
     const btnBg = this.add.graphics();
     btnBg.fillStyle(GAME_CONSTANTS.COLORS.PRIMARY, 1);
-    btnBg.fillRect(-45, -15, 90, 30);
+    btnBg.fillRoundedRect(-70, -20, 140, 40, 8);
     container.add(btnBg);
 
     const text = this.add.text(0, 0, 'ROLL DIE', {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
+      fontSize: '10px',
       color: '#ffffff',
     });
     text.setOrigin(0.5);
     container.add(text);
 
-    const hitArea = new Phaser.Geom.Rectangle(-45, -15, 90, 30);
-    container.setSize(90, 30);
+    const hitArea = new Phaser.Geom.Rectangle(-70, -20, 140, 40);
+    container.setSize(140, 40);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.SECONDARY, 1);
-      btnBg.fillRect(-45, -15, 90, 30);
+      btnBg.fillRoundedRect(-70, -20, 140, 40, 8);
     });
 
     container.on('pointerout', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.PRIMARY, 1);
-      btnBg.fillRect(-45, -15, 90, 30);
+      btnBg.fillRoundedRect(-70, -20, 140, 40, 8);
     });
 
     container.on('pointerdown', () => {
