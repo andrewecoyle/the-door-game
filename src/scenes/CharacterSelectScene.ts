@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CHARACTERS, CharacterData } from '../config/characters.config';
 import { GAME_CONSTANTS } from '../config/constants';
+import { actionPrompt } from '../utils/input-helpers';
 
 export class CharacterSelectScene extends Phaser.Scene {
   private selectedCharacterId: string | null = null;
@@ -15,18 +16,18 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Title
     this.add
-      .text(centerX, 50, 'SELECT YOUR CHARACTER', {
+      .text(centerX, 30, 'SELECT YOUR CHARACTER', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '20px',
+        fontSize: '16px',
         color: '#ffffff',
       })
       .setOrigin(0.5);
 
     // Instructions
     this.add
-      .text(centerX, 90, 'Click to select', {
+      .text(centerX, 58, actionPrompt('Tap to select', 'Click to select'), {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '10px',
+        fontSize: '8px',
         color: '#99e550',
       })
       .setOrigin(0.5);
@@ -39,11 +40,11 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   private displayCharacters(): void {
-    const startX = 130;
-    const startY = 210;
-    const spacingX = 210;
-    const spacingY = 210;
-    const charsPerRow = 4;
+    const startX = 80;
+    const startY = 150;
+    const spacingX = 150;
+    const spacingY = 160;
+    const charsPerRow = 7;
 
     CHARACTERS.forEach((char, index) => {
       const row = Math.floor(index / charsPerRow);
@@ -64,8 +65,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     const container = this.add.container(x, y);
 
     // Background card
-    const cardW = 180;
-    const cardH = 210;
+    const cardW = 130;
+    const cardH = 140;
     const halfW = cardW / 2;
     const halfH = cardH / 2;
 
@@ -77,15 +78,15 @@ export class CharacterSelectScene extends Phaser.Scene {
     container.add(cardBg);
 
     // Character sprite
-    const sprite = this.add.image(0, -25, char.id);
-    sprite.setScale(0.1);
+    const sprite = this.add.image(0, -20, char.id);
+    sprite.setScale(0.07);
     container.add(sprite);
 
     // Character name
     const nameText = this.add
-      .text(0, 50, char.displayName, {
+      .text(0, 35, char.displayName, {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '12px',
+        fontSize: '8px',
         color: '#ffffff',
       })
       .setOrigin(0.5);
@@ -93,12 +94,12 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Description
     const descText = this.add
-      .text(0, 78, char.description || '', {
+      .text(0, 52, char.description || '', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: '6px',
         color: '#99e550',
         align: 'center',
-        wordWrap: { width: 160 },
+        wordWrap: { width: 115 },
       })
       .setOrigin(0.5);
     container.add(descText);
@@ -166,8 +167,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     color: number,
     lineWidth: number
   ): void {
-    const cardW = 180;
-    const cardH = 210;
+    const cardW = 130;
+    const cardH = 140;
     const halfW = cardW / 2;
     const halfH = cardH / 2;
 
@@ -181,7 +182,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   private createConfirmButton(): void {
     const centerX = this.cameras.main.width / 2;
-    const centerY = this.cameras.main.height - 70;
+    const centerY = this.cameras.main.height - 50;
 
     const container = this.add.container(centerX, centerY);
     container.setName('confirmButton');
