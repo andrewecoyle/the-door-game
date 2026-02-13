@@ -40,9 +40,9 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   private displayCharacters(): void {
     const startX = 130;
-    const startY = 170;
+    const startY = 210;
     const spacingX = 210;
-    const spacingY = 230;
+    const spacingY = 210;
     const charsPerRow = 4;
 
     CHARACTERS.forEach((char, index) => {
