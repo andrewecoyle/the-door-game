@@ -12,6 +12,9 @@ export class PlayerManager {
   private initializePlayers(humanCharacterId: string): void {
     CHARACTERS.forEach((char, index) => {
       const isHuman = char.id === humanCharacterId;
+      // Top row: indices 0-3 (slots 1-4), Bottom row: indices 4-6 (slots 1-3)
+      const hudRow: 'top' | 'bottom' = index < 4 ? 'top' : 'bottom';
+      const hudSlot = index < 4 ? index + 1 : index - 3;
 
       const player: Player = {
         id: `player-${index}`,
@@ -24,6 +27,8 @@ export class PlayerManager {
         inJail: false,
         skippingTurn: false,
         color: char.color,
+        hudRow,
+        hudSlot,
       };
 
       this.players.push(player);

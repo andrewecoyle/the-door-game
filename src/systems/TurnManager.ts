@@ -5,16 +5,20 @@ export class TurnManager {
   private playerManager: PlayerManager;
   private currentPlayerIndex: number = 0;
   private turnNumber: number = 0;
+  private turnsTaken: Map<string, number> = new Map();
+  private lightningRoundActive: boolean = false;
 
   constructor(playerManager: PlayerManager) {
     this.playerManager = playerManager;
+    for (const player of playerManager.getPlayers()) {
+      this.turnsTaken.set(player.id, 0);
+    }
   }
 
   getCurrentPlayer(): Player | undefined {
     const alivePlayers = this.playerManager.getAlivePlayers();
     if (alivePlayers.length === 0) return undefined;
 
-    // Ensure index is within bounds
     if (this.currentPlayerIndex >= alivePlayers.length) {
       this.currentPlayerIndex = 0;
     }
@@ -22,11 +26,33 @@ export class TurnManager {
     return alivePlayers[this.currentPlayerIndex];
   }
 
+  recordTurnTaken(playerId: string): void {
+    const current = this.turnsTaken.get(playerId) || 0;
+    this.turnsTaken.set(playerId, current + 1);
+    this.checkLightningRound();
+  }
+
+  private checkLightningRound(): void {
+    if (this.lightningRoundActive) return;
+
+    const alivePlayers = this.playerManager.getAlivePlayers();
+    const minTurns = Math.min(
+      ...alivePlayers.map(p => this.turnsTaken.get(p.id) || 0)
+    );
+
+    if (minTurns >= 4) {
+      this.lightningRoundActive = true;
+    }
+  }
+
+  isLightningRound(): boolean {
+    return this.lightningRoundActive;
+  }
+
   nextTurn(): Player | undefined {
     const alivePlayers = this.playerManager.getAlivePlayers();
     if (alivePlayers.length === 0) return undefined;
 
-    // Move to next player
     this.currentPlayerIndex++;
     if (this.currentPlayerIndex >= alivePlayers.length) {
       this.currentPlayerIndex = 0;

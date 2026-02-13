@@ -10,7 +10,9 @@ import { PlayerHUD } from '../ui/PlayerHUD';
 import { CardDialog } from '../ui/CardDialog';
 import { TurnLog } from '../ui/TurnLog';
 import { GAME_CONSTANTS } from '../config/constants';
-import { Card, CardChoice } from '../types/game.types';
+import { Card, CardChoice, Player } from '../types/game.types';
+import EventBus from '../events/EventBus';
+import { ChaosResult } from './ChaosMinigameScene';
 
 interface GameSceneData {
   selectedCharacter: string;
@@ -29,6 +31,7 @@ export class GameScene extends Phaser.Scene {
   private gamePieces: Map<string, GamePiece> = new Map();
   private rollButton: Phaser.GameObjects.Container | null = null;
   private isProcessingTurn: boolean = false;
+  private lightningRoundText: Phaser.GameObjects.Text | null = null;
 
   // Layout constants
   private readonly SIDEBAR_WIDTH = 220;
@@ -278,11 +281,27 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Check if landed on card square (only if not at the Door)
-    if (newPosition % GAME_CONSTANTS.CARD_SQUARE_INTERVAL === 0 && newPosition > 0) {
+    // Determine if this player draws a card
+    const landedOnCardSquare = newPosition % GAME_CONSTANTS.CARD_SQUARE_INTERVAL === 0 && newPosition > 0;
+    const isLightningRound = this.turnManager.isLightningRound();
+
+    if (landedOnCardSquare) {
       console.log(`${currentPlayer.name} landed on a CARD square!`);
       this.logAction(currentPlayer.name, `Landed on CARD square!`);
       await this.drawCard(currentPlayer.id);
+    } else if (isLightningRound) {
+      // Lightning Round: every turn draws a card regardless of tile
+      this.logAction(currentPlayer.name, `LIGHTNING ROUND — draws a card!`);
+      await this.drawCard(currentPlayer.id);
+    }
+
+    // Record turn taken (after card effects, for Lightning Round tracking)
+    this.turnManager.recordTurnTaken(currentPlayer.id);
+
+    // Check if Lightning Round just activated
+    if (!isLightningRound && this.turnManager.isLightningRound()) {
+      this.logAction('GAME', 'LIGHTNING ROUND ACTIVATED!');
+      this.showLightningRoundIndicator();
     }
 
     // Check for game over (in case someone was eliminated during card effects)
@@ -389,6 +408,34 @@ export class GameScene extends Phaser.Scene {
     if (this.turnLog) {
       this.turnLog.addEntry(playerName, action);
     }
+  }
+
+  private showLightningRoundIndicator(): void {
+    // Persistent on-screen indicator
+    this.lightningRoundText = this.add.text(
+      this.cameras.main.width / 2,
+      38,
+      'LIGHTNING ROUND',
+      {
+        fontFamily: '"Press Start 2P", cursive',
+        fontSize: '8px',
+        color: '#fbf236',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }
+    ).setOrigin(0.5).setDepth(100);
+
+    // Pulsing effect
+    this.tweens.add({
+      targets: this.lightningRoundText,
+      alpha: 0.4,
+      duration: 600,
+      yoyo: true,
+      repeat: -1,
+    });
+
+    // Brief flash to announce it
+    this.cameras.main.flash(400, 251, 242, 54);
   }
 
   // Card system methods
@@ -629,7 +676,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private async selectTarget(player: any, message: string, targets: any[]): Promise<string | null> {
+  private async selectTarget(player: Player, message: string, targets: Player[]): Promise<string | null> {
     if (player.isAI) {
       // AI auto-selects target
       if (targets.length === 0) return null;
@@ -657,7 +704,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private async handleChaosCard(playerId: string, choice: CardChoice): Promise<void> {
-    if (!this.playerManager || !this.die) return;
+    if (!this.playerManager) return;
 
     const player = this.playerManager.getPlayer(playerId);
     if (!player) return;
@@ -665,74 +712,84 @@ export class GameScene extends Phaser.Scene {
     // Select target
     const targets = this.playerManager.getAllPlayers().filter(p => p.id !== playerId && !p.isEliminated);
     const targetId = await this.selectTarget(player, 'Select a player for Chaos showdown', targets);
-    
+
     if (!targetId) return;
 
     const target = this.playerManager.getPlayer(targetId);
     if (!target) return;
 
-    // Determine who throws based on choice
-    const isThrower = choice === 'can'; // CAN = target has can, player throws
+    // Determine roles based on choice
+    // CAN = "I'll stand with the can" → drawing player throws, target defends
+    // BALL = "Give me the ball" → target throws, drawing player defends
+    const isThrower = choice === 'can';
     const thrower = isThrower ? player : target;
     const defender = isThrower ? target : player;
+    const distance = this.calculateChaosDistance(player, target);
 
-    // Show chaos showdown dialog
-    const dialog = new CardDialog(this, {
-      type: 'chaosShowdown',
-      message: `${thrower.name} (Thrower) vs ${defender.name} (Defender)!`,
-    });
+    // Perspective always follows the card drawer:
+    // chose CAN → drawer throws → BALL perspective (they aim)
+    // chose BALL → drawer defends → CAN perspective (they watch)
+    const perspective = choice === 'can' ? 'ball' : 'can';
 
-    await new Promise(resolve => this.time.delayedCall(1000, resolve));
+    this.logAction(player.name, `CHAOS! ${thrower.name} throws at ${defender.name} (dist: ${distance})`);
 
-    // Roll for thrower (higher is better)
-    const throwRoll = await this.die.roll();
-    dialog.addDieRollResult(`${thrower.name} throws`, throwRoll, -20);
-
-    await new Promise(resolve => this.time.delayedCall(1000, resolve));
-
-    // Roll for defender (higher is better)
-    const defendRoll = await this.die.roll();
-    dialog.addDieRollResult(`${defender.name} defends`, defendRoll, 20);
-
-    await new Promise(resolve => this.time.delayedCall(1500, resolve));
-
-    // Determine outcome (thrower wants high roll, defender wants high roll to dodge)
-    let victim: any = null;
-    if (throwRoll > defendRoll) {
-      // Thrower wins - defender dies
-      victim = defender;
-      dialog.addDieRollResult(`${thrower.name} wins! ${defender.name} is eliminated!`, 0, 60);
-    } else if (defendRoll > throwRoll) {
-      // Defender wins - thrower dies
-      victim = thrower;
-      dialog.addDieRollResult(`${defender.name} dodges! ${thrower.name} is eliminated!`, 0, 60);
-    } else {
-      // Tie - no one dies
-      dialog.addDieRollResult('Tie! No one is eliminated.', 0, 60);
-    }
-
-    if (victim) {
-      victim.lives = 0;
-      victim.isEliminated = true;
-      this.playerHUD?.updatePlayer(victim);
-
-      // Hide the eliminated player's piece
-      const victimPiece = this.gamePieces.get(victim.id);
-      if (victimPiece) {
-        victimPiece.hide();
-      }
-
-      // Log elimination
-      this.logAction(victim.name, 'ELIMINATED!');
-    }
-
-    // Add continue button
-    await new Promise<void>((resolve) => {
-      dialog.addContinueButton(() => {
-        dialog.destroy();
-        resolve();
+    // Always launch the mini-game scene (even AI-vs-AI) for drama
+    const result = await new Promise<ChaosResult>((resolve) => {
+      EventBus.once('chaos-result', (data: ChaosResult) => {
+        resolve(data);
+      });
+      this.scene.pause();
+      this.scene.launch('ChaosMinigameScene', {
+        throwerId: thrower.id,
+        defenderId: defender.id,
+        throwerName: thrower.name,
+        defenderName: defender.name,
+        throwerSpriteKey: thrower.character.id,
+        defenderSpriteKey: defender.character.id,
+        distance,
+        throwerIsHuman: !thrower.isAI,
+        perspective,
       });
     });
+
+    // Resume GameScene
+    this.scene.resume();
+
+    // Apply result
+    this.applyChaosResult(result);
+  }
+
+  private calculateChaosDistance(playerA: Player, playerB: Player): number {
+    const sameRow = playerA.hudRow === playerB.hudRow;
+    const slotDiff = Math.abs(playerA.hudSlot - playerB.hudSlot);
+
+    let distance: number;
+    if (sameRow) {
+      distance = slotDiff;
+    } else {
+      // Cross-board: slot diff + 1 (crossing penalty) + 1 (base)
+      distance = slotDiff + 2;
+    }
+
+    return Math.max(1, Math.min(4, distance));
+  }
+
+  private applyChaosResult(result: ChaosResult): void {
+    if (!this.playerManager) return;
+
+    const loser = this.playerManager.getPlayer(result.loserId);
+    if (!loser) return;
+
+    // Use PlayerManager API to drain all lives (respects future hooks)
+    this.playerManager.loseLife(result.loserId, loser.lives);
+    this.playerHUD?.updatePlayer(loser);
+
+    const piece = this.gamePieces.get(loser.id);
+    if (piece) {
+      piece.hide();
+    }
+
+    this.logAction(loser.name, `ELIMINATED by Chaos! (${result.outcome})`);
   }
 
   private async updatePiecePosition(playerId: string): Promise<void> {

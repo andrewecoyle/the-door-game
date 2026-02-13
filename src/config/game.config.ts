@@ -3,6 +3,7 @@ import { BootScene } from '../scenes/BootScene';
 import { MenuScene } from '../scenes/MenuScene';
 import { CharacterSelectScene } from '../scenes/CharacterSelectScene';
 import { GameScene } from '../scenes/GameScene';
+import { ChaosMinigameScene } from '../scenes/ChaosMinigameScene';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -15,5 +16,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, MenuScene, CharacterSelectScene, GameScene],
+  scene: [BootScene, MenuScene, CharacterSelectScene, GameScene, ChaosMinigameScene],
 };
