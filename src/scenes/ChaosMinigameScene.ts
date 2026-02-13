@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import EventBus from '../events/EventBus';
 import { CHAOS_CONFIG } from '../config/constants';
+import { actionPrompt } from '../utils/input-helpers';
 
 export interface ChaosMinigameData {
   throwerId: string;
@@ -144,7 +145,7 @@ export class ChaosMinigameScene extends Phaser.Scene {
 
     if (this.chaosData.throwerIsHuman) {
       // Human thrower — press Space to aim
-      const promptText = this.add.text(W / 2, H - 40, 'PRESS SPACE TO THROW!', {
+      const promptText = this.add.text(W / 2, H - 40, actionPrompt('TAP TO THROW!', 'PRESS SPACE TO THROW!'), {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '10px',
         color: '#ffcc00',
@@ -270,7 +271,7 @@ export class ChaosMinigameScene extends Phaser.Scene {
 
     this.add.text(W / 2, arrowY + 65, '▲ CAN', {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '6px',
+      fontSize: '8px',
       color: '#c0c0c0',
     }).setOrigin(0.5).setDepth(9);
 
@@ -552,7 +553,7 @@ export class ChaosMinigameScene extends Phaser.Scene {
 
     // After showing, add continue button
     this.time.delayedCall(1200, () => {
-      const continueText = this.add.text(W / 2, H / 2 + 80, 'PRESS SPACE TO CONTINUE', {
+      const continueText = this.add.text(W / 2, H / 2 + 80, actionPrompt('TAP TO CONTINUE', 'PRESS SPACE TO CONTINUE'), {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '8px',
         color: '#ffcc00',

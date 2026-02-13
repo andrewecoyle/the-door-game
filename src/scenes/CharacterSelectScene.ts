@@ -95,7 +95,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     const descText = this.add
       .text(0, 78, char.description || '', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '6px',
+        fontSize: '8px',
         color: '#99e550',
         align: 'center',
         wordWrap: { width: 160 },

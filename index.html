@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>The Door - A Retro Game</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,9 +37,39 @@
         image-rendering: pixelated;
         image-rendering: crisp-edges;
       }
+
+      #rotate-prompt {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #000;
+        color: #fff;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 14px;
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      #rotate-prompt span {
+        font-size: 48px;
+      }
+
+      @media (orientation: portrait) and (max-width: 700px) {
+        #rotate-prompt {
+          display: flex;
+        }
+      }
     </style>
   </head>
   <body>
+    <div id="rotate-prompt">
+      <span>&#x1f504;</span>
+      <p>Rotate your device<br/>to landscape</p>
+    </div>
     <div id="game-container"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

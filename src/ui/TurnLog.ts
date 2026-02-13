@@ -9,7 +9,7 @@ export interface TurnLogEntry {
 export class TurnLog extends Phaser.GameObjects.Container {
   private entries: TurnLogEntry[] = [];
   private maxEntries: number = 10;
-  private entryHeight: number = 30;
+  private entryHeight: number = 34;
   private logTexts: Phaser.GameObjects.Text[] = [];
 
   constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
@@ -70,7 +70,7 @@ export class TurnLog extends Phaser.GameObjects.Container {
       // Player name (colored)
       const nameText = this.scene.add.text(10, y, `${entry.playerName}:`, {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '6px',
+        fontSize: '8px',
         color: '#99e550',
         stroke: '#000000',
         strokeThickness: 1,
@@ -79,9 +79,9 @@ export class TurnLog extends Phaser.GameObjects.Container {
       this.add(nameText);
 
       // Action text (wrapped)
-      const actionText = this.scene.add.text(10, y + 10, entry.action, {
+      const actionText = this.scene.add.text(10, y + 12, entry.action, {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '5px',
+        fontSize: '7px',
         color: '#ffffff',
         stroke: '#000000',
         strokeThickness: 1,

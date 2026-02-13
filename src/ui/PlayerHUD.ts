@@ -61,7 +61,7 @@ export class PlayerHUD extends Phaser.GameObjects.Container {
     // Lives (stacked below name)
     const livesText = this.scene.add.text(0, 65, `Lives: ${player.lives}`, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '6px',
+      fontSize: '8px',
       color: player.lives > 1 ? '#99e550' : '#d95763',
       stroke: '#000000',
       strokeThickness: 2,
@@ -71,9 +71,9 @@ export class PlayerHUD extends Phaser.GameObjects.Container {
     container.add(livesText);
 
     // Position (stacked below lives)
-    const posText = this.scene.add.text(0, 77, `Pos: ${player.position}`, {
+    const posText = this.scene.add.text(0, 80, `Pos: ${player.position}`, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '6px',
+      fontSize: '8px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 2,

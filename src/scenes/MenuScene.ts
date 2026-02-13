@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_CONSTANTS } from '../config/constants';
+import { actionPrompt } from '../utils/input-helpers';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -30,7 +31,7 @@ export class MenuScene extends Phaser.Scene {
 
     // Add pulsing "Press Start" text
     const startText = this.add
-      .text(centerX, centerY + 50, 'PRESS SPACE TO START', {
+      .text(centerX, centerY + 50, actionPrompt('TAP TO START', 'PRESS SPACE TO START'), {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '14px',
         color: '#ffffff',
@@ -71,6 +72,10 @@ export class MenuScene extends Phaser.Scene {
 
     // Input handling
     this.input.keyboard?.once('keydown-SPACE', () => {
+      this.scene.start('CharacterSelectScene');
+    });
+
+    this.input.once('pointerdown', () => {
       this.scene.start('CharacterSelectScene');
     });
 
