@@ -11,6 +11,8 @@ export interface Player {
   inJail: boolean;
   skippingTurn: boolean;
   color: number;
+  hudRow: 'top' | 'bottom'; // Which row of portraits this player is in
+  hudSlot: number;           // 1-indexed slot within that row
 }
 
 export interface BoardSquare {
