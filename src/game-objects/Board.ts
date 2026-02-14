@@ -6,16 +6,20 @@ import { GAME_CONSTANTS } from '../config/constants';
 export class Board extends Phaser.GameObjects.Container {
   private squares: BoardSquare[] = [];
   private squareGraphics: Map<number, Phaser.GameObjects.Graphics> = new Map();
+  private portrait: boolean;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, portrait: boolean = false) {
     super(scene, 0, 0);
+    this.portrait = portrait;
     scene.add.existing(this);
 
     this.createBoard();
   }
 
   private createBoard(): void {
-    this.squares = BoardCalculations.generateBoardSquares();
+    this.squares = this.portrait
+      ? BoardCalculations.generateBoardSquaresPortrait()
+      : BoardCalculations.generateBoardSquares();
 
     this.squares.forEach((square) => {
       this.createSquare(square);
@@ -97,7 +101,9 @@ export class Board extends Phaser.GameObjects.Container {
     if (square) {
       return { x: square.x, y: square.y };
     }
-    return BoardCalculations.getSquarePosition(squareIndex);
+    return this.portrait
+      ? BoardCalculations.getSquarePositionPortrait(squareIndex)
+      : BoardCalculations.getSquarePosition(squareIndex);
   }
 
   highlightSquare(squareIndex: number, color: number = GAME_CONSTANTS.COLORS.WARNING): void {

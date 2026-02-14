@@ -71,6 +71,65 @@ export class BoardCalculations {
     return squares;
   }
 
+  // Portrait layout constants (600x1050 canvas)
+  private static readonly PORTRAIT_TOP_Y = 480;
+  private static readonly PORTRAIT_BOT_Y = 530;
+
+  /**
+   * Calculate screen position for a board square in portrait mode (two rows)
+   */
+  static getSquarePositionPortrait(squareIndex: number): { x: number; y: number } {
+    const step = this.SQUARE_SIZE + this.SQUARE_SPACING;
+
+    // Jail: below square 10
+    if (squareIndex === -1) {
+      const sq10 = this.getSquarePositionPortrait(GAME_CONSTANTS.JAIL_SQUARE);
+      return { x: sq10.x, y: sq10.y + step };
+    }
+
+    if (squareIndex <= 10) {
+      // Top row: squares 0-10 (11 squares)
+      const rowWidth = 11 * step;
+      const startX = Math.floor((600 - rowWidth) / 2) + this.SQUARE_SIZE / 2;
+      return { x: startX + squareIndex * step, y: this.PORTRAIT_TOP_Y };
+    } else {
+      // Bottom row: squares 11-20 (10 squares)
+      const col = squareIndex - 11;
+      const rowWidth = 10 * step;
+      const startX = Math.floor((600 - rowWidth) / 2) + this.SQUARE_SIZE / 2;
+      return { x: startX + col * step, y: this.PORTRAIT_BOT_Y };
+    }
+  }
+
+  /**
+   * Generate all board squares with portrait positions
+   */
+  static generateBoardSquaresPortrait(): BoardSquare[] {
+    const squares: BoardSquare[] = [];
+
+    for (let i = 0; i <= GAME_CONSTANTS.BOARD_SQUARES; i++) {
+      const pos = this.getSquarePositionPortrait(i);
+      let type: BoardSquare['type'] = 'normal';
+
+      if (i === 0) {
+        type = 'normal';
+      } else if (i === GAME_CONSTANTS.DOOR_SQUARE) {
+        type = 'door';
+      } else if (i === GAME_CONSTANTS.JAIL_SQUARE) {
+        type = 'normal';
+      } else if (i % GAME_CONSTANTS.CARD_SQUARE_INTERVAL === 0) {
+        type = 'card';
+      }
+
+      squares.push({ index: i, type, x: pos.x, y: pos.y });
+    }
+
+    const jailPos = this.getSquarePositionPortrait(-1);
+    squares.push({ index: -1, type: 'jail', x: jailPos.x, y: jailPos.y });
+
+    return squares;
+  }
+
   /**
    * Calculate column positions (beer can columns around board)
    */

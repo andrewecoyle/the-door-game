@@ -14,6 +14,7 @@ import { Card, CardChoice, Player } from '../types/game.types';
 import EventBus from '../events/EventBus';
 import { ChaosResult } from './ChaosMinigameScene';
 import { isTouchDevice, actionPrompt } from '../utils/input-helpers';
+import { isPortrait } from '../utils/layout-helpers';
 
 interface GameSceneData {
   selectedCharacter: string;
@@ -33,6 +34,7 @@ export class GameScene extends Phaser.Scene {
   private rollButton: Phaser.GameObjects.Container | null = null;
   private isProcessingTurn: boolean = false;
   private lightningRoundText: Phaser.GameObjects.Text | null = null;
+  private portrait: boolean = false;
 
   // Layout constants
   private readonly SIDEBAR_WIDTH = 220;
@@ -47,6 +49,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.portrait = isPortrait();
+
     // Initialize game systems
     this.playerManager = new PlayerManager(this.selectedCharacterId);
     this.turnManager = new TurnManager(this.playerManager);
@@ -54,23 +58,21 @@ export class GameScene extends Phaser.Scene {
     this.cardSystem = new CardSystem(this.playerManager);
 
     // Create board
-    this.board = new Board(this);
-
-    // Calculate sidebar position
-    const sidebarX = this.cameras.main.width - this.SIDEBAR_WIDTH - this.SIDEBAR_X_OFFSET;
-
-    // Create die (in sidebar) - set depth to appear above sidebar background
-    this.die = new Die(this, sidebarX + this.SIDEBAR_WIDTH / 2, 80);
-    this.die.setDepth(10);
+    this.board = new Board(this, this.portrait);
 
     // Create player HUD
-    this.playerHUD = new PlayerHUD(this, this.playerManager.getPlayers());
+    this.playerHUD = new PlayerHUD(this, this.playerManager.getPlayers(), this.portrait);
 
     // Create game pieces for all players
     this.createGamePieces();
 
-    // Create UI
-    this.createSidebar(sidebarX);
+    if (this.portrait) {
+      this.createPortraitUI();
+    } else {
+      this.createLandscapeUI();
+    }
+
+    // Create info text (title + menu button)
     this.createInfoText();
 
     // Start first turn
@@ -82,6 +84,68 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private createLandscapeUI(): void {
+    const sidebarX = this.cameras.main.width - this.SIDEBAR_WIDTH - this.SIDEBAR_X_OFFSET;
+
+    // Create die (in sidebar)
+    this.die = new Die(this, sidebarX + this.SIDEBAR_WIDTH / 2, 80);
+    this.die.setDepth(10);
+
+    this.createSidebar(sidebarX);
+  }
+
+  private createPortraitUI(): void {
+    const W = this.cameras.main.width;
+    const H = this.cameras.main.height;
+
+    // Die — small, bottom-left
+    this.die = new Die(this, 50, H - 50);
+    this.die.setScale(0.67);
+    this.die.setDepth(10);
+
+    // Roll button — center-bottom
+    const btnY = H - 50;
+    const container = this.add.container(W / 2, btnY);
+    const btnBg = this.add.graphics();
+    btnBg.fillStyle(GAME_CONSTANTS.COLORS.PRIMARY, 1);
+    btnBg.fillRoundedRect(-120, -25, 240, 50, 8);
+    container.add(btnBg);
+
+    const text = this.add.text(0, 0, 'ROLL DIE', {
+      fontFamily: '"Press Start 2P", cursive',
+      fontSize: '12px',
+      color: '#ffffff',
+    });
+    text.setOrigin(0.5);
+    container.add(text);
+
+    const hitArea = new Phaser.Geom.Rectangle(-120, -25, 240, 50);
+    container.setSize(240, 50);
+    container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
+
+    container.on('pointerover', () => {
+      btnBg.clear();
+      btnBg.fillStyle(GAME_CONSTANTS.COLORS.SECONDARY, 1);
+      btnBg.fillRoundedRect(-120, -25, 240, 50, 8);
+    });
+    container.on('pointerout', () => {
+      btnBg.clear();
+      btnBg.fillStyle(GAME_CONSTANTS.COLORS.PRIMARY, 1);
+      btnBg.fillRoundedRect(-120, -25, 240, 50, 8);
+    });
+    container.on('pointerdown', () => {
+      this.onRollDie();
+    });
+
+    this.rollButton = container;
+    this.rollButton.setVisible(false);
+    this.rollButton.setDepth(10);
+
+    // Turn log — collapsible, between board and controls
+    this.turnLog = new TurnLog(this, 10, 680, W - 20, 0, true);
+    this.turnLog.setDepth(10);
+  }
+
   private createGamePieces(): void {
     if (!this.board || !this.playerManager) return;
 
@@ -89,7 +153,6 @@ export class GameScene extends Phaser.Scene {
     const startPos = this.board.getSquarePosition(0);
 
     players.forEach((player, index) => {
-      // Distribute pieces around center of square
       const positions = this.calculatePiecePositions(players.length, startPos.x, startPos.y);
       const piece = new GamePiece(this, player, positions[index].x, positions[index].y);
       this.gamePieces.set(player.id, piece);
@@ -106,11 +169,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     const positions: Array<{ x: number; y: number }> = [];
-    const radius = 16; // Increased from 12 to prevent overlap with 7 pieces
+    const radius = 16;
 
-    // Arrange in a circle pattern around the center, starting at top (12 o'clock)
     for (let i = 0; i < numPieces; i++) {
-      const angle = (i / numPieces) * Math.PI * 2 - Math.PI / 2; // Start at top
+      const angle = (i / numPieces) * Math.PI * 2 - Math.PI / 2;
       positions.push({
         x: centerX + Math.cos(angle) * radius,
         y: centerY + Math.sin(angle) * radius,
@@ -136,7 +198,7 @@ export class GameScene extends Phaser.Scene {
     const dieBorder = this.add.graphics();
     dieBorder.lineStyle(3, GAME_CONSTANTS.COLORS.PRIMARY, 1);
     dieBorder.strokeRect(centerX - 60, dieY - 35, 120, 90);
-    dieBorder.setDepth(10); // Same depth as die
+    dieBorder.setDepth(10);
 
     // Corner decorations
     const cornerSize = 6;
@@ -185,7 +247,7 @@ export class GameScene extends Phaser.Scene {
 
     this.rollButton = container;
     this.rollButton.setVisible(false);
-    this.rollButton.setDepth(10); // Above sidebar background
+    this.rollButton.setDepth(10);
 
     // Turn log
     this.turnLog = new TurnLog(this, sidebarX + 10, 220, this.SIDEBAR_WIDTH - 20, this.cameras.main.height - 260);
@@ -193,18 +255,37 @@ export class GameScene extends Phaser.Scene {
 
 
   private createInfoText(): void {
+    const W = this.cameras.main.width;
+    const H = this.cameras.main.height;
+
     this.add
-      .text(this.cameras.main.width / 2, 20, 'THE DOOR - PHASE 2 PROTOTYPE', {
+      .text(W / 2, this.portrait ? 15 : 20, 'THE DOOR', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: this.portrait ? '10px' : '8px',
         color: '#99e550',
       })
       .setOrigin(0.5)
       .setDepth(100);
 
-    if (isTouchDevice()) {
-      // Touch menu button
-      const menuBtn = this.add.container(50, this.cameras.main.height - 25);
+    if (this.portrait) {
+      // MENU button bottom-right
+      const menuBtn = this.add.container(W - 50, H - 50);
+      const menuBg = this.add.graphics();
+      menuBg.fillStyle(0x333355, 0.8);
+      menuBg.fillRoundedRect(-35, -20, 70, 40, 6);
+      menuBtn.add(menuBg);
+      const menuText = this.add.text(0, 0, 'MENU', {
+        fontFamily: '"Press Start 2P", cursive',
+        fontSize: '8px',
+        color: '#ffffff',
+      }).setOrigin(0.5);
+      menuBtn.add(menuText);
+      menuBtn.setSize(70, 40);
+      menuBtn.setInteractive(new Phaser.Geom.Rectangle(-35, -20, 70, 40), Phaser.Geom.Rectangle.Contains);
+      menuBtn.on('pointerdown', () => { this.scene.start('MenuScene'); });
+      menuBtn.setDepth(100);
+    } else if (isTouchDevice()) {
+      const menuBtn = this.add.container(50, H - 25);
       const menuBg = this.add.graphics();
       menuBg.fillStyle(0x333355, 0.8);
       menuBg.fillRoundedRect(-40, -15, 80, 30, 6);
@@ -221,7 +302,7 @@ export class GameScene extends Phaser.Scene {
       menuBtn.setDepth(100);
     } else {
       this.add
-        .text(10, this.cameras.main.height - 20, 'ESC: Menu', {
+        .text(10, H - 20, 'ESC: Menu', {
           fontFamily: '"Press Start 2P", cursive',
           fontSize: '8px',
           color: '#ffffff',
@@ -241,10 +322,8 @@ export class GameScene extends Phaser.Scene {
       currentPlayer.skippingTurn = false;
       this.logAction(currentPlayer.name, 'Turn skipped (in jail)');
 
-      // Update HUD to reflect they're no longer skipping
       this.playerHUD.updatePlayer(currentPlayer);
 
-      // Move to next turn immediately
       this.turnManager.nextTurn();
       this.time.delayedCall(500, () => {
         this.startTurn();
@@ -261,7 +340,6 @@ export class GameScene extends Phaser.Scene {
         this.onRollDie();
       });
     } else {
-      // Show roll button for human player
       this.rollButton?.setVisible(true);
     }
   }
@@ -279,13 +357,12 @@ export class GameScene extends Phaser.Scene {
     const rollValue = await this.die.roll();
     console.log(`${currentPlayer.name} rolled ${rollValue}`);
 
-    // Log the roll
     this.logAction(currentPlayer.name, `Rolled ${rollValue}`);
 
     // Calculate new position - if in jail, start from square 10
     let startPosition = currentPlayer.position;
     if (currentPlayer.inJail) {
-      startPosition = 10; // Exit jail, start from square 10
+      startPosition = 10;
       currentPlayer.inJail = false;
       this.logAction(currentPlayer.name, 'Released from jail');
     }
@@ -293,10 +370,9 @@ export class GameScene extends Phaser.Scene {
     // Move player
     await this.movePlayer(currentPlayer.id, startPosition + rollValue);
 
-    // Check for game over FIRST (before checking for card squares)
+    // Check for game over FIRST
     const newPosition = currentPlayer.position;
     if (newPosition >= GAME_CONSTANTS.DOOR_SQUARE) {
-      // Player reached the Door - they win!
       this.endGame();
       return;
     }
@@ -310,12 +386,11 @@ export class GameScene extends Phaser.Scene {
       this.logAction(currentPlayer.name, `Landed on CARD square!`);
       await this.drawCard(currentPlayer.id);
     } else if (isLightningRound) {
-      // Lightning Round: every turn draws a card regardless of tile
       this.logAction(currentPlayer.name, `LIGHTNING ROUND — draws a card!`);
       await this.drawCard(currentPlayer.id);
     }
 
-    // Record turn taken (after card effects, for Lightning Round tracking)
+    // Record turn taken
     this.turnManager.recordTurnTaken(currentPlayer.id);
 
     // Check if Lightning Round just activated
@@ -324,7 +399,7 @@ export class GameScene extends Phaser.Scene {
       this.showLightningRoundIndicator();
     }
 
-    // Check for game over (in case someone was eliminated during card effects)
+    // Check for game over
     if (this.turnManager.isGameOver()) {
       this.endGame();
       return;
@@ -334,7 +409,6 @@ export class GameScene extends Phaser.Scene {
     this.turnManager.nextTurn();
     this.isProcessingTurn = false;
 
-    // Wait a bit before starting next turn
     this.time.delayedCall(500, () => {
       this.startTurn();
     });
@@ -347,13 +421,10 @@ export class GameScene extends Phaser.Scene {
     const piece = this.gamePieces.get(playerId);
     if (!player || !piece) return;
 
-    // Cap position at the Door (square 20) - can't go past it
     const cappedPosition = Math.min(newPosition, GAME_CONSTANTS.DOOR_SQUARE);
 
-    // Update player position
     this.playerManager.movePlayer(playerId, cappedPosition);
 
-    // Calculate target position distributed around square center
     const basePos = this.board.getSquarePosition(cappedPosition);
     const playersOnSquare = this.playerManager
       .getPlayers()
@@ -362,13 +433,10 @@ export class GameScene extends Phaser.Scene {
     const stackIndex = playersOnSquare.findIndex((p) => p.id === playerId);
     const positions = this.calculatePiecePositions(playersOnSquare.length, basePos.x, basePos.y);
 
-    // Animate piece movement to distributed position
     await piece.moveToPosition(positions[stackIndex].x, positions[stackIndex].y);
 
-    // Update HUD
     this.playerHUD?.updatePlayer(player);
 
-    // Log if player reached the Door
     if (cappedPosition >= GAME_CONSTANTS.DOOR_SQUARE) {
       this.logAction(player.name, 'Reached the DOOR!');
     }
@@ -382,17 +450,18 @@ export class GameScene extends Phaser.Scene {
       const centerX = this.cameras.main.width / 2;
       const centerY = this.cameras.main.height / 2;
 
-      // Overlay
       const overlay = this.add.graphics();
       overlay.fillStyle(0x000000, 0.8);
       overlay.fillRect(0, 0, this.cameras.main.width, this.cameras.main.height);
       overlay.setDepth(1000);
 
-      // Winner text
+      const gameOverSize = this.portrait ? '24px' : '32px';
+      const winnerSize = this.portrait ? '16px' : '20px';
+
       this.add
         .text(centerX, centerY - 50, 'GAME OVER!', {
           fontFamily: '"Press Start 2P", cursive',
-          fontSize: '32px',
+          fontSize: gameOverSize,
           color: '#ffffff',
         })
         .setOrigin(0.5)
@@ -401,7 +470,7 @@ export class GameScene extends Phaser.Scene {
       this.add
         .text(centerX, centerY + 20, `${winner.name} WINS!`, {
           fontFamily: '"Press Start 2P", cursive',
-          fontSize: '20px',
+          fontSize: winnerSize,
           color: '#99e550',
         })
         .setOrigin(0.5)
@@ -435,10 +504,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showLightningRoundIndicator(): void {
-    // Persistent on-screen indicator
     this.lightningRoundText = this.add.text(
       this.cameras.main.width / 2,
-      38,
+      this.portrait ? 30 : 38,
       'LIGHTNING ROUND',
       {
         fontFamily: '"Press Start 2P", cursive',
@@ -449,7 +517,6 @@ export class GameScene extends Phaser.Scene {
       }
     ).setOrigin(0.5).setDepth(100);
 
-    // Pulsing effect
     this.tweens.add({
       targets: this.lightningRoundText,
       alpha: 0.4,
@@ -458,7 +525,6 @@ export class GameScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    // Brief flash to announce it
     this.cameras.main.flash(400, 251, 242, 54);
   }
 
@@ -475,31 +541,25 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Show card fly-in animation
     await this.playCardFlyInAnimation();
 
-    // Show card and let player choose
     const choice = await this.showCardChoice(player.id, card);
     if (!choice) return;
 
-    // Execute the chosen effect
     await this.executeCardChoice(player.id, choice);
   }
 
   private async playCardFlyInAnimation(): Promise<void> {
     return new Promise<void>((resolve) => {
-      // Calculate deck position (top center of screen)
       const deckX = this.cameras.main.width / 2;
-      const deckY = -50; // Off screen top
+      const deckY = -50;
 
-      // Create card sprite
       const cardGraphics = this.add.graphics();
       cardGraphics.fillStyle(0x1a1a2e, 1);
       cardGraphics.fillRoundedRect(-30, -40, 60, 80, 8);
       cardGraphics.lineStyle(3, 0xbb9af7, 1);
       cardGraphics.strokeRoundedRect(-30, -40, 60, 80, 8);
 
-      // Add question mark
       const questionMark = this.add.text(0, 0, '?', {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '24px',
@@ -507,13 +567,11 @@ export class GameScene extends Phaser.Scene {
       });
       questionMark.setOrigin(0.5);
 
-      // Container for card
       const cardContainer = this.add.container(deckX, deckY);
       cardContainer.add([cardGraphics, questionMark]);
       cardContainer.setDepth(500);
       cardContainer.setAlpha(0);
 
-      // Fly in animation
       this.tweens.add({
         targets: cardContainer,
         y: this.cameras.main.height / 2,
@@ -521,7 +579,6 @@ export class GameScene extends Phaser.Scene {
         duration: 600,
         ease: 'Back.easeOut',
         onComplete: () => {
-          // Flash effect
           this.tweens.add({
             targets: cardContainer,
             scale: 1.2,
@@ -542,13 +599,11 @@ export class GameScene extends Phaser.Scene {
     const player = this.playerManager!.getPlayer(playerId);
     if (!player) return null;
 
-    // Check if options are available
     const deadPlayers = this.playerManager!.getAllPlayers().filter(p => p.isEliminated);
     const optionADisabled = card.optionA === 'resurrect' && deadPlayers.length === 0;
     const optionBDisabled = card.optionB === 'resurrect' && deadPlayers.length === 0;
 
     if (player.isAI) {
-      // AI makes choice - show dialog with progress bar
       const aiChoice = this.aiChooseCardOption(player.id, card);
       const aiChoiceOption: 'A' | 'B' = aiChoice === card.optionA ? 'A' : 'B';
 
@@ -567,7 +622,6 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    // Human player chooses
     return new Promise<CardChoice | null>((resolve) => {
       new CardDialog(this, {
         type: 'chooseCard',
@@ -586,22 +640,17 @@ export class GameScene extends Phaser.Scene {
     const player = this.playerManager!.getPlayer(playerId);
     if (!player) return card.optionA;
 
-    // AI decision logic based on card type and strategy
     if (card.type === 'judge-jury') {
-      // Aggressive: use Jury (more damage), Cautious: use Judge (safer)
       return player.character.aiStrategy === 'aggressive' ? card.optionB : card.optionA;
     } else if (card.type === 'summon-exile') {
-      // Aggressive: use Exile (damage + jail), Cautious: use Summon (reposition)
       return player.character.aiStrategy === 'aggressive' ? card.optionB : card.optionA;
     } else if (card.type === 'resurrect-reap') {
-      // Check if any dead players
       const deadPlayers = this.playerManager!.getAllPlayers().filter(p => p.isEliminated);
       if (deadPlayers.length > 0 && player.character.aiStrategy === 'balanced') {
-        return card.optionA; // Resurrect
+        return card.optionA;
       }
-      return card.optionB; // Reap (instant kill)
+      return card.optionB;
     } else if (card.type === 'chaos') {
-      // Use aimSkill to decide - high aim = be thrower (CAN), low aim = make them throw (BALL)
       return (player.character.aimSkill || 0.5) > 0.6 ? card.optionA : card.optionB;
     }
 
@@ -617,14 +666,12 @@ export class GameScene extends Phaser.Scene {
     console.log(`${player.name} chose: ${choice}`);
     this.logAction(player.name, `Chose ${choice.toUpperCase()}`);
 
-    // Handle special cases
     if (choice === 'can' || choice === 'ball') {
       await this.handleChaosCard(playerId, choice);
       return;
     }
 
     if (choice === 'resurrect') {
-      // Check if there are dead players
       const deadPlayers = this.playerManager.getAllPlayers().filter(p => p.isEliminated);
       if (deadPlayers.length === 0) {
         new CardDialog(this, {
@@ -636,19 +683,15 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Get initial result (may need target selection)
     let result = await this.cardSystem.executeCardEffect(playerId, choice);
 
-    // If requires target selection
     if (result.requiresUserInput && result.availableTargets) {
       const targetId = await this.selectTarget(player, result.message, result.availableTargets);
-      
-      if (!targetId) return; // Canceled
 
-      // Execute with target
+      if (!targetId) return;
+
       result = await this.cardSystem.executeCardEffect(playerId, choice, targetId);
 
-      // Jury requires secondary choice (selector picks victim)
       if (result.requiresSecondaryChoice && result.secondaryChoicePlayerId && result.availableTargets) {
         const secondaryPlayer = this.playerManager.getPlayer(result.secondaryChoicePlayerId);
         if (secondaryPlayer) {
@@ -660,7 +703,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Show result message and log it
     if (result.success && result.message) {
       this.logAction(player.name, result.message);
 
@@ -673,14 +715,12 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    // Update affected players
     if (result.affectedPlayers) {
       for (const affectedId of result.affectedPlayers) {
         const affected = this.playerManager.getPlayer(affectedId);
         if (affected) {
           this.playerHUD?.updatePlayer(affected);
 
-          // Hide or show piece based on elimination status
           const piece = this.gamePieces.get(affectedId);
           if (piece) {
             if (affected.isEliminated) {
@@ -691,7 +731,6 @@ export class GameScene extends Phaser.Scene {
             }
           }
 
-          // Update piece position if moved (and not eliminated)
           if (!affected.isEliminated && (choice === 'summon' || choice === 'exile' || choice === 'resurrect')) {
             await this.updatePiecePosition(affectedId);
           }
@@ -702,20 +741,17 @@ export class GameScene extends Phaser.Scene {
 
   private async selectTarget(player: Player, message: string, targets: Player[]): Promise<string | null> {
     if (player.isAI) {
-      // AI auto-selects target
       if (targets.length === 0) return null;
-      
-      // Simple AI: target player with most lives (aggressive) or closest (positional)
+
       if (player.character.aiStrategy === 'aggressive') {
         targets.sort((a, b) => b.lives - a.lives);
       } else {
         targets.sort((a, b) => Math.abs(a.position - player.position) - Math.abs(b.position - player.position));
       }
-      
+
       return targets[0].id;
     }
 
-    // Human selects target
     return new Promise<string | null>((resolve) => {
       new CardDialog(this, {
         type: 'selectTarget',
@@ -733,7 +769,6 @@ export class GameScene extends Phaser.Scene {
     const player = this.playerManager.getPlayer(playerId);
     if (!player) return;
 
-    // Select target
     const targets = this.playerManager.getAllPlayers().filter(p => p.id !== playerId && !p.isEliminated);
     const targetId = await this.selectTarget(player, 'Select a player for Chaos showdown', targets);
 
@@ -742,22 +777,15 @@ export class GameScene extends Phaser.Scene {
     const target = this.playerManager.getPlayer(targetId);
     if (!target) return;
 
-    // Determine roles based on choice
-    // CAN = "I'll stand with the can" → drawing player throws, target defends
-    // BALL = "Give me the ball" → target throws, drawing player defends
     const isThrower = choice === 'can';
     const thrower = isThrower ? player : target;
     const defender = isThrower ? target : player;
     const distance = this.calculateChaosDistance(player, target);
 
-    // Perspective always follows the card drawer:
-    // chose CAN → drawer throws → BALL perspective (they aim)
-    // chose BALL → drawer defends → CAN perspective (they watch)
     const perspective = choice === 'can' ? 'ball' : 'can';
 
     this.logAction(player.name, `CHAOS! ${thrower.name} throws at ${defender.name} (dist: ${distance})`);
 
-    // Always launch the mini-game scene (even AI-vs-AI) for drama
     const result = await new Promise<ChaosResult>((resolve) => {
       EventBus.once('chaos-result', (data: ChaosResult) => {
         resolve(data);
@@ -776,10 +804,8 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
-    // Resume GameScene
     this.scene.resume();
 
-    // Apply result
     this.applyChaosResult(result);
   }
 
@@ -791,7 +817,6 @@ export class GameScene extends Phaser.Scene {
     if (sameRow) {
       distance = slotDiff;
     } else {
-      // Cross-board: slot diff + 1 (crossing penalty) + 1 (base)
       distance = slotDiff + 2;
     }
 
@@ -804,7 +829,6 @@ export class GameScene extends Phaser.Scene {
     const loser = this.playerManager.getPlayer(result.loserId);
     if (!loser) return;
 
-    // Use PlayerManager API to drain all lives (respects future hooks)
     this.playerManager.loseLife(result.loserId, loser.lives);
     this.playerHUD?.updatePlayer(loser);
 

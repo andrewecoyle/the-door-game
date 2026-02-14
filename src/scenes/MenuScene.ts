@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_CONSTANTS } from '../config/constants';
 import { actionPrompt } from '../utils/input-helpers';
+import { isPortrait } from '../utils/layout-helpers';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -15,7 +16,7 @@ export class MenuScene extends Phaser.Scene {
     const title = this.add
       .text(centerX, centerY - 150, 'THE DOOR', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '48px',
+        fontSize: isPortrait() ? '32px' : '48px',
         color: '#ffffff',
       })
       .setOrigin(0.5);

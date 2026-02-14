@@ -10,4 +10,9 @@ window.addEventListener('load', () => {
 
   console.log('The Door - Game initialized!');
   console.log('Phaser version:', Phaser.VERSION);
+
+  // Reload on orientation change to re-init with correct canvas dimensions
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => window.location.reload(), 100);
+  });
 });
