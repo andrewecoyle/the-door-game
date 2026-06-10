@@ -18,7 +18,7 @@ export const CHARACTERS: CharacterData[] = [
     color: 0x5b6ee1,
     aiStrategy: 'balanced',
     aimSkill: 0.6,
-    description: 'Protagonist - Strategic and balanced',
+    description: 'Strategic and balanced',
   },
   {
     id: 'fara',

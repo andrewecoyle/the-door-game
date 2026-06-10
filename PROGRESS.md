@@ -1,5 +1,63 @@
 # The Door - Development Progress
 
+## ✅ Portrait "Climb" Layout — Direction D (June 2026)
+
+Implemented the design handoff (`design_handoff_climb_layout`) for mobile:
+- Board is a single vertical column of wide tiles — BEGIN at the bottom
+  climbing to a glowing DOOR at the top; JAIL is a pill beside square 10.
+- The seven characters flank the board on two rails (Kingston/Innis/Fara/
+  Miles up the left, Gary Kent/Stacy/Paul down the right) as large cream
+  avatar tiles framed to head + torso, with heart-pip lives, a pulsing
+  purple border + "TURN" tag for the active player, and JAIL/RIP badges.
+- Player tokens are small colored dots on the tiles (the human's is larger
+  with a white ring).
+- Turn log: a 3-entry strip above the controls that expands into a
+  full-screen overlay (index ticks, tap scrim to close). Log names are
+  colored per player; bad/warn actions tint red/yellow.
+- Size audit across all screens: dialogs, chaos minigame, character select,
+  and menu all render ~1.4–1.5× larger in portrait (44pt-class tap targets,
+  9–18px type instead of 6–10px). Landscape is unchanged.
+
+## ✅ Full Revamp Pass (June 2026)
+
+**Bug fixes:**
+- Chaos minigame POV was inverted in two cases — the human thrower could be
+  reduced to watching an RNG roll. POV now derives from who is human:
+  human throws → BALL (aiming) view; human defends vs AI → first-person CAN
+  view; AI vs AI → spectator view.
+- Chaos role choice now belongs to the TARGET (per PRD), not the drawer.
+  Human targets get a dialog; AI targets choose by aim skill.
+- Drawn cards were never discarded, so the deck silently ran dry during
+  Lightning Round. Cards are now discarded and the deck reshuffles.
+- Turn order tracked by player ID, so eliminations no longer skip turns.
+- Target-select dialog overflowed with 6 targets (last player hidden under
+  CANCEL); spacing is now dynamic.
+- Character sprites shipped with opaque cream backgrounds; BootScene now
+  strips them at load (edge flood fill) so sprites render cleanly.
+
+**Chaos minigame:**
+- Difficulty meter (4 color-coded pips: EASY/TRICKY/HARD/BRUTAL by distance).
+- Ball throw is a real parabolic arc landing where the arrow stopped;
+  hit-can knocks the can spinning off the defender's head; hit-body flashes
+  the defender red; misses sail past (and the defender turns to watch).
+- AI hit chance = PRD distance table × thrower aim-skill modifier.
+
+**Audio (all synthesized, no asset files):**
+- `src/audio/` — Web Audio chiptune engine. Dark minor-key music for menu,
+  character select, in-game, chaos (tense ostinato) and a victory fanfare.
+- SFX: button clicks, character select, dice ticks/landing, card draw and
+  flip, arrow ticks, throw whoosh, can clang, body thud, miss, death
+  arpeggio, resurrect, jail, lightning round.
+- Mute toggle (♪ button in every scene, or press M); persists in localStorage.
+
+**UI/UX:**
+- Card draws fly in and flip to reveal the card name, with the drawer's name.
+- Sprite facing system (left/right/center via `src/utils/facing.ts`); HUD
+  portraits face the board, minigame actors face each other.
+- Win screen: confetti, bouncing winner sprite, victory music.
+- Menu: pixel-art door with glowing light, favicon, version text.
+- HUD shows "In JAIL" status.
+
 ## Prototype Status: Phases 0-2 Complete ✅
 
 ### ✅ Phase 0: Project Setup (Complete)

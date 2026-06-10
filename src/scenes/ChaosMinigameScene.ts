@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import EventBus from '../events/EventBus';
 import { CHAOS_CONFIG } from '../config/constants';
 import { actionPrompt } from '../utils/input-helpers';
+import { setFacing } from '../utils/facing';
+import AudioEngine from '../audio/AudioEngine';
 
 export interface ChaosMinigameData {
   throwerId: string;
@@ -12,7 +14,8 @@ export interface ChaosMinigameData {
   defenderSpriteKey: string;
   distance: number;        // 1–4
   throwerIsHuman: boolean;
-  perspective: 'ball' | 'can'; // BALL = human throws, CAN = human defends
+  throwerAimSkill: number; // 0–1, modifies AI hit chance
+  perspective: 'ball' | 'can'; // BALL = thrower's POV, CAN = defender's first-person POV
 }
 
 export type ChaosOutcome = 'hit-can' | 'hit-body' | 'miss';
@@ -22,14 +25,24 @@ export interface ChaosResult {
   loserId: string;
 }
 
+const DIFFICULTY_LABELS = ['', 'EASY', 'TRICKY', 'HARD', 'BRUTAL'] as const;
+const DIFFICULTY_COLORS = [0, 0x4fa83d, 0xfbf236, 0xff9e64, 0xd95763] as const;
+
 export class ChaosMinigameScene extends Phaser.Scene {
   private chaosData!: ChaosMinigameData;
   private arrowX: number = 0;
-  private sweepTween!: Phaser.Tweens.Tween;
+  private arrowY: number = 0;
+  private sweepTween: Phaser.Tweens.Tween | null = null;
   private arrowGraphic!: Phaser.GameObjects.Graphics;
   private defenderCenterX: number = 0;
+  private defenderY: number = 0;
   private canCenterY: number = 0;
   private hasThrown: boolean = false;
+  private defenderSprite: Phaser.GameObjects.Image | null = null;
+  private canContainer: Phaser.GameObjects.Container | null = null;
+  private promptText: Phaser.GameObjects.Text | null = null;
+  // Visual multiplier: portrait canvas is wide enough for bigger actors/zones
+  private vm: number = 1;
 
   constructor() {
     super({ key: 'ChaosMinigameScene' });
@@ -38,16 +51,21 @@ export class ChaosMinigameScene extends Phaser.Scene {
   init(data: ChaosMinigameData): void {
     this.chaosData = data;
     this.hasThrown = false;
+    this.defenderSprite = null;
+    this.canContainer = null;
+    this.sweepTween = null;
+    this.promptText = null;
   }
 
   create(): void {
     const W = this.cameras.main.width;
     const H = this.cameras.main.height;
+    this.vm = H > W ? 1.5 : 1;
 
-    // Fade in
     this.cameras.main.fadeIn(300, 0, 0, 0);
+    AudioEngine.playMusic('chaos');
 
-    // Dark background
+    // Dark backdrop with a faint vignette floor
     this.add.rectangle(W / 2, H / 2, W, H, 0x0a0a1a).setDepth(0);
 
     if (this.chaosData.perspective === 'ball') {
@@ -55,104 +73,135 @@ export class ChaosMinigameScene extends Phaser.Scene {
     } else {
       this.createCanPerspective(W, H);
     }
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.sweepTween?.stop();
+    });
   }
 
-  // ─── BALL PERSPECTIVE (Human is Thrower) ───────────────────────────
-  private createBallPerspective(W: number, H: number): void {
-    const distance = this.chaosData.distance;
-    const scale = CHAOS_CONFIG.SCALE[distance];
-    const speed = CHAOS_CONFIG.SPEED[distance];
-
-    this.defenderCenterX = W / 2;
-    const defenderY = H * 0.55;
-
-    // Title
-    this.add.text(W / 2, 30, 'CHAOS — THROW!', {
+  // ─── SHARED UI ──────────────────────────────────────────────────────
+  private createHeader(W: number, title: string): void {
+    const portrait = this.vm > 1;
+    this.add.text(W / 2, portrait ? 40 : 30, title, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '14px',
+      fontSize: portrait ? '18px' : '14px',
       color: '#ff00ff',
       stroke: '#000000',
       strokeThickness: 4,
     }).setOrigin(0.5).setDepth(5);
 
-    // Distance indicator
-    this.add.text(W / 2, 55, `Distance: ${distance}`, {
+    this.createDifficultyMeter(W / 2, portrait ? 82 : 62);
+  }
+
+  // Difficulty meter — 4 pips filled by distance, color-coded
+  private createDifficultyMeter(cx: number, y: number): void {
+    const distance = this.chaosData.distance;
+    const portrait = this.vm > 1;
+    const font = portrait ? '10px' : '8px';
+
+    this.add.text(cx - (portrait ? 80 : 60), y, 'DIFFICULTY', {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
+      fontSize: font,
       color: '#aaaaaa',
     }).setOrigin(0.5).setDepth(5);
 
-    // Player labels
-    this.add.text(W / 2, H - 70, `${this.chaosData.throwerName} → ${this.chaosData.defenderName}`, {
+    const pipW = portrait ? 24 : 18;
+    const pipH = portrait ? 13 : 10;
+    const gap = portrait ? 5 : 4;
+    const startX = cx + (portrait ? 0 : 8);
+    const g = this.add.graphics().setDepth(5);
+    for (let i = 1; i <= 4; i++) {
+      const x = startX + (i - 1) * (pipW + gap);
+      if (i <= distance) {
+        g.fillStyle(DIFFICULTY_COLORS[distance], 1);
+        g.fillRect(x, y - pipH / 2, pipW, pipH);
+      }
+      g.lineStyle(1, 0x888888, 1);
+      g.strokeRect(x, y - pipH / 2, pipW, pipH);
+    }
+
+    const labelColor = '#' + DIFFICULTY_COLORS[distance].toString(16).padStart(6, '0');
+    this.add.text(startX + 4 * (pipW + gap) + 10, y, DIFFICULTY_LABELS[distance], {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
+      fontSize: font,
+      color: labelColor,
+    }).setOrigin(0, 0.5).setDepth(5);
+  }
+
+  // Pixel-art tin can in a container so it can be knocked off later
+  private createCan(x: number, y: number, scale: number): Phaser.GameObjects.Container {
+    const canW = 16 * scale;
+    const canH = 20 * scale;
+    const container = this.add.container(x, y);
+    const g = this.add.graphics();
+    // Body
+    g.fillStyle(0xc0c0c0, 1);
+    g.fillRect(-canW / 2, -canH / 2, canW, canH);
+    // Ridges
+    g.fillStyle(0x9a9a9a, 1);
+    g.fillRect(-canW / 2, -canH / 2 + canH * 0.15, canW, Math.max(1, canH * 0.08));
+    g.fillRect(-canW / 2, canH / 2 - canH * 0.23, canW, Math.max(1, canH * 0.08));
+    // Highlight
+    g.fillStyle(0xe8e8e8, 1);
+    g.fillRect(-canW / 2 + canW * 0.15, -canH / 2 + canH * 0.1, Math.max(1, canW * 0.18), canH * 0.8);
+    // Outline
+    g.lineStyle(1, 0xffffff, 0.6);
+    g.strokeRect(-canW / 2, -canH / 2, canW, canH);
+    container.add(g);
+    container.setDepth(3);
+    return container;
+  }
+
+  // ─── BALL PERSPECTIVE (Thrower's POV) ───────────────────────────────
+  private createBallPerspective(W: number, H: number): void {
+    const distance = this.chaosData.distance;
+    const scale = CHAOS_CONFIG.SCALE[distance] * this.vm;
+    const speed = CHAOS_CONFIG.SPEED[distance];
+    const portrait = this.vm > 1;
+
+    this.defenderCenterX = W / 2;
+    // In portrait the canvas is tall — keep the action in the upper-middle
+    this.defenderY = portrait ? H * 0.42 : H * 0.55;
+
+    this.createHeader(W, 'CHAOS — THROW!');
+
+    // Matchup label
+    this.add.text(W / 2, H - (portrait ? 105 : 70), `${this.chaosData.throwerName} → ${this.chaosData.defenderName}`, {
+      fontFamily: '"Press Start 2P", cursive',
+      fontSize: portrait ? '11px' : '8px',
       color: '#ffffff',
     }).setOrigin(0.5).setDepth(5);
 
+    // Defender sprite (scaled by distance), facing the thrower (camera)
+    this.defenderSprite = this.add.image(this.defenderCenterX, this.defenderY, this.chaosData.defenderSpriteKey);
+    this.defenderSprite.setScale(0.08 * scale);
+    this.defenderSprite.setDepth(2);
+    setFacing(this.defenderSprite, 'center');
+
     // Ground line
-    const groundY = defenderY + 60 * scale + 10;
+    const groundY = this.defenderY + this.defenderSprite.displayHeight / 2 + 10;
     this.add.rectangle(W / 2, groundY, W * 0.6, 2, 0x444444).setDepth(1);
 
-    // Defender sprite (scaled by distance)
-    const defenderSprite = this.add.image(this.defenderCenterX, defenderY, this.chaosData.defenderSpriteKey);
-    defenderSprite.setScale(0.08 * scale);
-    defenderSprite.setDepth(2);
-
     // Can on defender's head
-    const spriteHalfH = (defenderSprite.displayHeight) / 2;
-    this.canCenterY = defenderY - spriteHalfH - 12 * scale;
-    const canWidth = 16 * scale;
-    const canHeight = 20 * scale;
+    const spriteHalfH = this.defenderSprite.displayHeight / 2;
+    this.canCenterY = this.defenderY - spriteHalfH - 12 * scale;
+    this.canContainer = this.createCan(this.defenderCenterX, this.canCenterY, scale);
 
-    const canGraphics = this.add.graphics();
-    canGraphics.fillStyle(0xc0c0c0, 1);
-    canGraphics.fillRect(
-      this.defenderCenterX - canWidth / 2,
-      this.canCenterY - canHeight / 2,
-      canWidth,
-      canHeight
-    );
-    canGraphics.lineStyle(1, 0xffffff, 0.6);
-    canGraphics.strokeRect(
-      this.defenderCenterX - canWidth / 2,
-      this.canCenterY - canHeight / 2,
-      canWidth,
-      canHeight
-    );
-    canGraphics.setDepth(3);
-
-    // Arrow indicator
-    const arrowY = this.canCenterY - 30 * scale - 10;
+    // Arrow indicator sweeping above the can
+    this.arrowY = this.canCenterY - 30 * scale - 10;
     this.arrowGraphic = this.add.graphics();
     this.arrowGraphic.setDepth(10);
-
-    const sweepHalf = CHAOS_CONFIG.SWEEP_HALF_WIDTH;
-    this.arrowX = this.defenderCenterX - sweepHalf;
-
-    // Arrow sweep tween
-    const tweenDuration = ((sweepHalf * 2) / speed) * 1000;
-    this.sweepTween = this.tweens.add({
-      targets: this,
-      arrowX: this.defenderCenterX + sweepHalf,
-      duration: tweenDuration,
-      ease: 'Linear',
-      yoyo: true,
-      repeat: -1,
-      onUpdate: () => {
-        this.drawArrow(this.arrowX, arrowY);
-      },
-    });
+    this.startArrowSweep(speed);
 
     if (this.chaosData.throwerIsHuman) {
-      // Human thrower — press Space to aim
-      const promptText = this.add.text(W / 2, H - 40, actionPrompt('TAP TO THROW!', 'PRESS SPACE TO THROW!'), {
+      this.promptText = this.add.text(W / 2, H - (portrait ? 60 : 40), actionPrompt('TAP TO THROW!', 'PRESS SPACE TO THROW!'), {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '10px',
+        fontSize: portrait ? '14px' : '10px',
         color: '#ffcc00',
       }).setOrigin(0.5).setDepth(20);
 
       this.tweens.add({
-        targets: promptText,
+        targets: this.promptText,
         alpha: 0.3,
         duration: 500,
         yoyo: true,
@@ -162,20 +211,45 @@ export class ChaosMinigameScene extends Phaser.Scene {
       this.input.keyboard?.once('keydown-SPACE', () => this.onPlayerThrow());
       this.input.once('pointerdown', () => this.onPlayerThrow());
     } else {
-      // AI thrower — auto-throw after suspenseful delay
-      this.add.text(W / 2, H - 40, `${this.chaosData.throwerName} is aiming...`, {
+      // AI throws while everyone watches
+      this.add.text(W / 2, H - (this.vm > 1 ? 60 : 40), `${this.chaosData.throwerName} is aiming...`, {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: this.vm > 1 ? '11px' : '8px',
         color: '#888888',
       }).setOrigin(0.5).setDepth(20);
 
-      this.scheduleAIBallThrow(arrowY);
+      this.scheduleAIBallThrow();
     }
   }
 
-  private scheduleAIBallThrow(arrowY: number): void {
+  private startArrowSweep(speed: number): void {
+    const sweepHalf = this.vm > 1 ? 150 : CHAOS_CONFIG.SWEEP_HALF_WIDTH;
+    this.arrowX = this.defenderCenterX - sweepHalf;
+    const tweenDuration = ((sweepHalf * 2) / speed) * 1000;
+
+    this.sweepTween = this.tweens.add({
+      targets: this,
+      arrowX: this.defenderCenterX + sweepHalf,
+      duration: tweenDuration,
+      ease: 'Linear',
+      yoyo: true,
+      repeat: -1,
+      onUpdate: () => this.drawArrow(this.arrowX, this.arrowY),
+      onYoyo: () => AudioEngine.sfx('arrowTick'),
+      onRepeat: () => AudioEngine.sfx('arrowTick'),
+    });
+  }
+
+  // AI hit chance: PRD distance table, nudged by the thrower's aim skill
+  private rollAIHitChance(): number {
+    const base = CHAOS_CONFIG.AI_HIT_CHANCE[this.chaosData.distance];
+    const aimFactor = 0.7 + this.chaosData.throwerAimSkill * 0.6; // 0.7x–1.3x
+    return Math.min(90, Math.round(base * aimFactor));
+  }
+
+  private scheduleAIBallThrow(): void {
     const distance = this.chaosData.distance;
-    const hitChance = CHAOS_CONFIG.AI_HIT_CHANCE[distance];
+    const hitChance = this.rollAIHitChance();
     const roll = Math.random() * 100;
     const outcome: ChaosOutcome = roll < hitChance ? 'hit-can' : (roll < hitChance + 20 ? 'hit-body' : 'miss');
 
@@ -184,8 +258,8 @@ export class ChaosMinigameScene extends Phaser.Scene {
     this.time.delayedCall(suspenseTime, () => {
       this.sweepTween?.stop();
 
-      // Determine where the arrow should stop based on outcome
-      const scale = CHAOS_CONFIG.SCALE[distance];
+      // Stop the arrow at a position consistent with the outcome
+      const scale = CHAOS_CONFIG.SCALE[distance] * this.vm;
       const canHalfWidth = (CHAOS_CONFIG.CAN_HIT_ZONE_BASE * scale) / 2;
       const bodyHalfWidth = (CHAOS_CONFIG.BODY_HIT_ZONE_BASE * scale) / 2;
       let targetX: number;
@@ -204,104 +278,69 @@ export class ChaosMinigameScene extends Phaser.Scene {
         arrowX: targetX,
         duration: 250,
         ease: 'Quad.easeOut',
-        onUpdate: () => {
-          this.drawArrow(this.arrowX, arrowY);
-        },
+        onUpdate: () => this.drawArrow(this.arrowX, this.arrowY),
         onComplete: () => {
-          this.time.delayedCall(400, () => {
-            this.playResultAnimation(outcome);
-          });
+          this.time.delayedCall(400, () => this.playResultAnimation(outcome));
         },
       });
     });
   }
 
-  // ─── CAN PERSPECTIVE (Human is Defender, First-Person) ─────────────
+  // ─── CAN PERSPECTIVE (Human defends, first-person) ──────────────────
   private createCanPerspective(W: number, H: number): void {
     const distance = this.chaosData.distance;
-    const scale = CHAOS_CONFIG.SCALE[distance];
+    const scale = CHAOS_CONFIG.SCALE[distance] * this.vm;
+    const portrait = this.vm > 1;
 
     this.defenderCenterX = W / 2;
 
-    // Title
-    this.add.text(W / 2, 30, 'CHAOS — DEFEND!', {
-      fontFamily: '"Press Start 2P", cursive',
-      fontSize: '14px',
-      color: '#ff00ff',
-      stroke: '#000000',
-      strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(5);
+    this.createHeader(W, 'CHAOS — DEFEND!');
 
-    // Distance indicator
-    this.add.text(W / 2, 55, `Distance: ${distance}`, {
+    this.add.text(W / 2, H - (portrait ? 105 : 70), `${this.chaosData.throwerName} is throwing at you...`, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
-      color: '#aaaaaa',
-    }).setOrigin(0.5).setDepth(5);
-
-    // First-person viewpoint text
-    this.add.text(W / 2, H - 70, `${this.chaosData.throwerName} is throwing at you...`, {
-      fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
+      fontSize: portrait ? '11px' : '8px',
       color: '#ffffff',
     }).setOrigin(0.5).setDepth(5);
 
-    // Thrower sprite (far away, scaled by distance)
-    const throwerY = H * 0.5;
+    // Thrower sprite at distance, facing you
+    const throwerY = portrait ? H * 0.45 : H * 0.5;
     const throwerSprite = this.add.image(W / 2, throwerY, this.chaosData.throwerSpriteKey);
     throwerSprite.setScale(0.06 * scale);
     throwerSprite.setDepth(2);
+    setFacing(throwerSprite, 'center');
 
     // Ground line
     const groundY = throwerY + throwerSprite.displayHeight / 2 + 5;
     this.add.rectangle(W / 2, groundY, W * 0.6, 2, 0x444444).setDepth(1);
 
-    // Arrow sweeping at top of screen (large, close to camera — defender's POV)
-    const arrowY = 90;
+    // Arrow sweeping at top of screen (large — it's over YOUR head)
+    this.arrowY = portrait ? 140 : 110;
     this.arrowGraphic = this.add.graphics();
     this.arrowGraphic.setDepth(10);
 
     // Can outline at top of screen (first-person — it's on YOUR head)
-    const canWidth = 40;
-    const canHeight = 50;
+    const canWidth = 40 * this.vm;
+    const canHeight = 50 * this.vm;
     const canOutline = this.add.graphics();
     canOutline.lineStyle(2, 0xc0c0c0, 0.5);
-    canOutline.strokeRect(W / 2 - canWidth / 2, arrowY - canHeight / 2 + 30, canWidth, canHeight);
+    canOutline.strokeRect(W / 2 - canWidth / 2, this.arrowY - canHeight / 2 + 30 * this.vm, canWidth, canHeight);
     canOutline.setDepth(9);
 
-    this.add.text(W / 2, arrowY + 65, '▲ CAN', {
+    this.add.text(W / 2, this.arrowY + 85 * this.vm, '▲ YOUR CAN', {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '8px',
+      fontSize: portrait ? '10px' : '8px',
       color: '#c0c0c0',
     }).setOrigin(0.5).setDepth(9);
 
-    const sweepHalf = CHAOS_CONFIG.SWEEP_HALF_WIDTH;
-    this.arrowX = this.defenderCenterX - sweepHalf;
+    this.startArrowSweep(CHAOS_CONFIG.SPEED[distance]);
 
-    const speed = CHAOS_CONFIG.SPEED[distance];
-    const tweenDuration = ((sweepHalf * 2) / speed) * 1000;
-
-    this.sweepTween = this.tweens.add({
-      targets: this,
-      arrowX: this.defenderCenterX + sweepHalf,
-      duration: tweenDuration,
-      ease: 'Linear',
-      yoyo: true,
-      repeat: -1,
-      onUpdate: () => {
-        this.drawArrow(this.arrowX, arrowY);
-      },
-    });
-
-    // "Watching..." text (no input for defender)
-    this.add.text(W / 2, H - 40, 'Watching...', {
+    this.add.text(W / 2, H - (portrait ? 60 : 40), 'Hold still...', {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '10px',
+      fontSize: portrait ? '13px' : '10px',
       color: '#888888',
     }).setOrigin(0.5).setDepth(20);
 
-    // Schedule AI throw after brief suspense
-    this.scheduleAIThrow(arrowY, throwerSprite);
+    this.scheduleAIThrow(throwerSprite);
   }
 
   // ─── ARROW DRAWING ─────────────────────────────────────────────────
@@ -324,31 +363,27 @@ export class ChaosMinigameScene extends Phaser.Scene {
     if (this.hasThrown) return;
     this.hasThrown = true;
     this.sweepTween?.pause();
+    this.promptText?.setVisible(false);
 
     const outcome = this.classifyArrowPosition(this.arrowX);
     this.playResultAnimation(outcome);
   }
 
   // ─── AI THROW (CAN perspective) ────────────────────────────────────
-  private scheduleAIThrow(arrowY: number, throwerSprite: Phaser.GameObjects.Image): void {
-    const distance = this.chaosData.distance;
-    const hitChance = CHAOS_CONFIG.AI_HIT_CHANCE[distance];
+  private scheduleAIThrow(throwerSprite: Phaser.GameObjects.Image): void {
+    const hitChance = this.rollAIHitChance();
     const roll = Math.random() * 100;
     const outcome: ChaosOutcome = roll < hitChance ? 'hit-can' : 'miss';
 
-    // Let the arrow sweep for a suspenseful moment
     const suspenseTime = 1200 + Math.random() * 800;
 
     this.time.delayedCall(suspenseTime, () => {
-      this.sweepTween.stop();
+      this.sweepTween?.stop();
 
-      // Determine where the arrow should stop based on outcome
       let targetX: number;
       if (outcome === 'hit-can') {
-        // Stop right on center (can)
-        targetX = this.defenderCenterX + (Math.random() * 6 - 3); // slight variance
+        targetX = this.defenderCenterX + (Math.random() * 6 - 3);
       } else {
-        // Stop clearly off-target
         const offset = 60 + Math.random() * 50;
         targetX = this.defenderCenterX + (Math.random() > 0.5 ? offset : -offset);
       }
@@ -358,11 +393,8 @@ export class ChaosMinigameScene extends Phaser.Scene {
         arrowX: targetX,
         duration: 300,
         ease: 'Quad.easeOut',
-        onUpdate: () => {
-          this.drawArrow(this.arrowX, arrowY);
-        },
+        onUpdate: () => this.drawArrow(this.arrowX, this.arrowY),
         onComplete: () => {
-          // Brief pause, then resolve
           this.time.delayedCall(400, () => {
             this.playCanResultAnimation(outcome, throwerSprite);
           });
@@ -374,7 +406,7 @@ export class ChaosMinigameScene extends Phaser.Scene {
   // ─── CLASSIFY ARROW POSITION (BALL perspective) ────────────────────
   private classifyArrowPosition(arrowX: number): ChaosOutcome {
     const distance = this.chaosData.distance;
-    const scale = CHAOS_CONFIG.SCALE[distance];
+    const scale = CHAOS_CONFIG.SCALE[distance] * this.vm;
     const canHalfWidth = (CHAOS_CONFIG.CAN_HIT_ZONE_BASE * scale) / 2;
     const bodyHalfWidth = (CHAOS_CONFIG.BODY_HIT_ZONE_BASE * scale) / 2;
     const dx = Math.abs(arrowX - this.defenderCenterX);
@@ -385,12 +417,18 @@ export class ChaosMinigameScene extends Phaser.Scene {
   }
 
   // ─── RESULT ANIMATION (BALL perspective) ───────────────────────────
+  // The ball flies in an arc from the thrower's hands (bottom center) to
+  // wherever the arrow stopped — then the outcome plays out.
   private playResultAnimation(outcome: ChaosOutcome): void {
     const loserId = outcome === 'hit-can' ? this.chaosData.defenderId : this.chaosData.throwerId;
+    const landX = this.arrowX;
+
+    AudioEngine.sfx('throw');
 
     if (outcome === 'hit-can') {
-      // Ball flies toward the can
-      this.animateBallThrow(this.defenderCenterX, this.canCenterY, () => {
+      this.animateBallArc(landX, this.canCenterY, () => {
+        AudioEngine.sfx('clang');
+        this.knockCanOff(landX);
         this.cameras.main.flash(200, 255, 50, 50);
         this.cameras.main.shake(300, 0.02);
         this.showOutcomeText('HIT!', '#ff4444', `${this.chaosData.defenderName} is eliminated!`, () => {
@@ -398,7 +436,9 @@ export class ChaosMinigameScene extends Phaser.Scene {
         });
       });
     } else if (outcome === 'hit-body') {
-      this.animateBallThrow(this.defenderCenterX, this.canCenterY + 40, () => {
+      this.animateBallArc(landX, this.defenderY, () => {
+        AudioEngine.sfx('bodyHit');
+        this.flashDefender();
         this.cameras.main.flash(200, 255, 140, 0);
         this.cameras.main.shake(200, 0.015);
         this.showOutcomeText('HIT BODY!', '#ff8800', `${this.chaosData.throwerName} is eliminated!`, () => {
@@ -406,25 +446,126 @@ export class ChaosMinigameScene extends Phaser.Scene {
         });
       });
     } else {
-      // Miss — ball flies past
-      const missX = this.arrowX > this.defenderCenterX
-        ? this.defenderCenterX + 200
-        : this.defenderCenterX - 200;
-      this.animateBallThrow(missX, this.canCenterY - 20, () => {
+      // Miss — ball sails past the defender and offscreen
+      const ballPassedLeft = landX < this.defenderCenterX;
+      this.animateBallArc(landX, this.canCenterY - 10, () => {
+        AudioEngine.sfx('miss');
+        // Defender watches the ball go by
+        if (this.defenderSprite) {
+          setFacing(this.defenderSprite, ballPassedLeft ? 'left' : 'right');
+        }
         this.showOutcomeText('MISS!', '#888888', `${this.chaosData.throwerName} is eliminated!`, () => {
           this.exitScene({ outcome, loserId });
         });
-      });
+      }, true);
     }
+  }
+
+  // Parabolic arc throw. continuePast: keep flying offscreen after the apex point.
+  private animateBallArc(
+    targetX: number,
+    targetY: number,
+    onArrive: () => void,
+    continuePast: boolean = false
+  ): void {
+    const W = this.cameras.main.width;
+    const H = this.cameras.main.height;
+
+    const startX = W / 2;
+    const startY = H - 90;
+    const arcHeight = Math.max(60, (startY - targetY) * 0.35);
+
+    const ball = this.add.circle(startX, startY, 6, 0xff6600);
+    ball.setStrokeStyle(1, 0xffffff, 0.8);
+    ball.setDepth(50);
+
+    const progress = { t: 0 };
+    this.tweens.add({
+      targets: progress,
+      t: 1,
+      duration: 550,
+      ease: 'Sine.easeIn',
+      onUpdate: () => {
+        const t = progress.t;
+        ball.x = Phaser.Math.Linear(startX, targetX, t);
+        ball.y = Phaser.Math.Linear(startY, targetY, t) - arcHeight * 4 * t * (1 - t);
+        const s = Phaser.Math.Linear(1, 0.45, t); // shrinks with distance
+        ball.setScale(s);
+      },
+      onComplete: () => {
+        if (continuePast) {
+          // Keep sailing past the defender, shrinking into the distance
+          const dirX = targetX >= W / 2 ? 1 : -1;
+          this.tweens.add({
+            targets: ball,
+            x: targetX + dirX * 160,
+            y: targetY - 40,
+            scale: 0.15,
+            alpha: 0,
+            duration: 450,
+            ease: 'Quad.easeOut',
+            onComplete: () => ball.destroy(),
+          });
+          onArrive();
+        } else {
+          ball.destroy();
+          onArrive();
+        }
+      },
+    });
+  }
+
+  // The can flips off the defender's head, spinning, and falls to the ground
+  private knockCanOff(impactX: number): void {
+    if (!this.canContainer) return;
+    const can = this.canContainer;
+    const dir = impactX <= can.x ? 1 : -1; // can flies away from impact side
+
+    const groundY = this.defenderY + (this.defenderSprite?.displayHeight ?? 60) / 2 + 6;
+
+    this.tweens.add({
+      targets: can,
+      x: can.x + dir * (40 + Math.random() * 30),
+      angle: dir * (540 + Math.random() * 180),
+      duration: 700,
+      ease: 'Linear',
+    });
+    // Up then down with a gravity feel
+    this.tweens.add({
+      targets: can,
+      y: can.y - 50,
+      duration: 250,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: can,
+          y: groundY,
+          duration: 450,
+          ease: 'Bounce.easeOut',
+        });
+      },
+    });
+  }
+
+  private flashDefender(): void {
+    if (!this.defenderSprite) return;
+    const sprite = this.defenderSprite;
+    sprite.setTintFill(0xff4444);
+    this.time.delayedCall(120, () => sprite.clearTint());
+    this.time.delayedCall(240, () => sprite.setTintFill(0xff4444));
+    this.time.delayedCall(360, () => sprite.clearTint());
   }
 
   // ─── RESULT ANIMATION (CAN perspective) ────────────────────────────
   private playCanResultAnimation(outcome: ChaosOutcome, throwerSprite: Phaser.GameObjects.Image): void {
     const loserId = outcome === 'hit-can' ? this.chaosData.defenderId : this.chaosData.throwerId;
 
+    AudioEngine.sfx('throw');
+
     if (outcome === 'hit-can') {
       // Ball flies toward camera (first-person hit)
       this.animateBallTowardCamera(throwerSprite.x, throwerSprite.y, () => {
+        AudioEngine.sfx('clang');
         this.cameras.main.flash(300, 255, 50, 50);
         this.cameras.main.shake(400, 0.03);
         this.showOutcomeText('KO!', '#ff0000', `${this.chaosData.defenderName} is eliminated!`, () => {
@@ -432,37 +573,14 @@ export class ChaosMinigameScene extends Phaser.Scene {
         });
       });
     } else {
-      // Ball flies past
+      // Ball flies past your head
       this.animateBallPast(throwerSprite.x, throwerSprite.y, () => {
-        this.showOutcomeText('MISS!', '#99e550', `${this.chaosData.throwerName} missed!`, () => {
+        AudioEngine.sfx('miss');
+        this.showOutcomeText('MISS!', '#99e550', `${this.chaosData.throwerName} missed — and is eliminated!`, () => {
           this.exitScene({ outcome, loserId });
         });
       });
     }
-  }
-
-  // ─── BALL ANIMATIONS ───────────────────────────────────────────────
-  private animateBallThrow(targetX: number, targetY: number, onComplete: () => void): void {
-    const W = this.cameras.main.width;
-    const H = this.cameras.main.height;
-
-    // Ball starts from bottom center (thrower's position)
-    const ball = this.add.circle(W / 2, H - 100, 5, 0xff6600);
-    ball.setDepth(50);
-
-    this.tweens.add({
-      targets: ball,
-      x: targetX,
-      y: targetY,
-      scaleX: 0.6,
-      scaleY: 0.6,
-      duration: 500,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        ball.destroy();
-        onComplete();
-      },
-    });
   }
 
   private animateBallTowardCamera(fromX: number, fromY: number, onComplete: () => void): void {
@@ -527,13 +645,14 @@ export class ChaosMinigameScene extends Phaser.Scene {
 
     const sub = this.add.text(W / 2, H / 2 + 30, subText, {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '10px',
+      fontSize: this.vm > 1 ? '13px' : '10px',
       color: '#ffffff',
       stroke: '#000000',
       strokeThickness: 3,
+      align: 'center',
+      wordWrap: { width: W - 60 },
     }).setOrigin(0.5).setDepth(100).setAlpha(0);
 
-    // Animate main text in
     this.tweens.add({
       targets: main,
       alpha: 1,
@@ -543,7 +662,6 @@ export class ChaosMinigameScene extends Phaser.Scene {
       ease: 'Back.easeOut',
     });
 
-    // Sub text fades in slightly after
     this.tweens.add({
       targets: sub,
       alpha: 1,
@@ -551,11 +669,10 @@ export class ChaosMinigameScene extends Phaser.Scene {
       delay: 200,
     });
 
-    // After showing, add continue button
     this.time.delayedCall(1200, () => {
       const continueText = this.add.text(W / 2, H / 2 + 80, actionPrompt('TAP TO CONTINUE', 'PRESS SPACE TO CONTINUE'), {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: this.vm > 1 ? '11px' : '8px',
         color: '#ffcc00',
       }).setOrigin(0.5).setDepth(100);
 
@@ -579,10 +696,5 @@ export class ChaosMinigameScene extends Phaser.Scene {
       EventBus.emit('chaos-result', result);
       this.scene.stop();
     });
-  }
-
-  shutdown(): void {
-    this.sweepTween?.stop();
-    this.arrowGraphic?.destroy();
   }
 }

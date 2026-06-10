@@ -3,6 +3,8 @@ import { CHARACTERS, CharacterData } from '../config/characters.config';
 import { GAME_CONSTANTS } from '../config/constants';
 import { actionPrompt } from '../utils/input-helpers';
 import { isPortrait } from '../utils/layout-helpers';
+import { createMuteButton } from '../ui/MuteButton';
+import AudioEngine from '../audio/AudioEngine';
 
 export class CharacterSelectScene extends Phaser.Scene {
   private selectedCharacterId: string | null = null;
@@ -17,20 +19,25 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.portrait = isPortrait();
     const centerX = this.cameras.main.width / 2;
 
+    AudioEngine.playMusic('select');
+    createMuteButton(this, this.cameras.main.width - 30, 30);
+
     // Title
     this.add
-      .text(centerX, 30, 'SELECT YOUR CHARACTER', {
+      .text(centerX, this.portrait ? 40 : 30, 'SELECT YOUR CHARACTER', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: this.portrait ? '12px' : '16px',
+        fontSize: '16px',
         color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 3,
       })
       .setOrigin(0.5);
 
     // Instructions
     this.add
-      .text(centerX, 58, actionPrompt('Tap to select', 'Click to select'), {
+      .text(centerX, this.portrait ? 72 : 58, actionPrompt('Tap to select', 'Click to select'), {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: this.portrait ? '10px' : '8px',
         color: '#99e550',
       })
       .setOrigin(0.5);
@@ -52,7 +59,8 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   private displayLandscapeGrid(): void {
     const startX = 80;
-    const startY = 150;
+    // Vertically centered between the title and the START GAME button
+    const startY = 280;
     const spacingX = 150;
     const charsPerRow = 7;
 
@@ -69,11 +77,11 @@ export class CharacterSelectScene extends Phaser.Scene {
   private displayPortraitGrid(): void {
     // 2 columns, 4 rows (last row has 1 centered card)
     const W = this.cameras.main.width;
-    const cardW = 250;
-    const cardH = 140;
-    const spacingX = 280;
-    const spacingY = 160;
-    const startY = 140;
+    const cardW = 270;
+    const cardH = 185;
+    const spacingX = 290;
+    const spacingY = 205;
+    const startY = 200;
 
     CHARACTERS.forEach((char, index) => {
       const row = Math.floor(index / 2);
@@ -113,15 +121,15 @@ export class CharacterSelectScene extends Phaser.Scene {
     container.add(cardBg);
 
     // Character sprite
-    const spriteScale = this.portrait ? 0.09 : 0.07;
-    const sprite = this.add.image(0, -20, char.id);
+    const spriteScale = this.portrait ? 0.115 : 0.07;
+    const sprite = this.add.image(0, this.portrait ? -35 : -20, char.id);
     sprite.setScale(spriteScale);
     container.add(sprite);
 
     // Character name
-    const nameSize = this.portrait ? '10px' : '8px';
+    const nameSize = this.portrait ? '12px' : '8px';
     const nameText = this.add
-      .text(0, 35, char.displayName, {
+      .text(0, this.portrait ? 48 : 35, char.displayName, {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: nameSize,
         color: '#ffffff',
@@ -131,18 +139,19 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     // Description
     const descText = this.add
-      .text(0, 52, char.description || '', {
+      .text(0, this.portrait ? 72 : 52, char.description || '', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '6px',
+        fontSize: this.portrait ? '8px' : '7px',
         color: '#99e550',
         align: 'center',
-        wordWrap: { width: cardW - 15 },
+        wordWrap: { width: cardW - 16 },
       })
       .setOrigin(0.5);
     container.add(descText);
 
-    // Make interactive
-    const hitArea = new Phaser.Geom.Rectangle(-halfW, -halfH, cardW, cardH);
+    // Make interactive — with setSize, container hit-test coords are
+    // display-origin offset, so the rect starts at (0,0)
+    const hitArea = new Phaser.Geom.Rectangle(0, 0, cardW, cardH);
     container.setSize(cardW, cardH);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
@@ -169,6 +178,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     });
 
     container.on('pointerdown', () => {
+      AudioEngine.sfx('select');
       this.selectCharacter(char.id);
     });
 
@@ -194,6 +204,16 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     if (container && char) {
       this.updateCardBorder(container, char.color, 4);
+
+      // Little hop to acknowledge the pick
+      this.tweens.add({
+        targets: container,
+        scaleX: 1.06,
+        scaleY: 1.06,
+        duration: 120,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
     }
 
     // Show confirm button
@@ -231,42 +251,45 @@ export class CharacterSelectScene extends Phaser.Scene {
     container.setName('confirmButton');
     container.setVisible(false);
 
+    const btnW = this.portrait ? 300 : 240;
+    const btnH = this.portrait ? 64 : 50;
+
     // Button background
     const btnBg = this.add.graphics();
     btnBg.fillStyle(GAME_CONSTANTS.COLORS.SUCCESS, 1);
-    btnBg.fillRoundedRect(-120, -25, 240, 50, 10);
+    btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
     container.add(btnBg);
 
     // Button text
     const btnText = this.add
       .text(0, 0, 'START GAME', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '14px',
+        fontSize: this.portrait ? '16px' : '14px',
         color: '#000000',
       })
       .setOrigin(0.5);
     container.add(btnText);
 
-    // Make interactive
-    const hitArea = new Phaser.Geom.Rectangle(-120, -25, 240, 50);
-    container.setSize(240, 50);
+    // Make interactive (rect at 0,0 — see card hit-area note)
+    const hitArea = new Phaser.Geom.Rectangle(0, 0, btnW, btnH);
+    container.setSize(btnW, btnH);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.UI_LIGHT, 1);
-      btnBg.fillRoundedRect(-120, -25, 240, 50, 10);
+      btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
     });
 
     container.on('pointerout', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.SUCCESS, 1);
-      btnBg.fillRoundedRect(-120, -25, 240, 50, 10);
+      btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
     });
 
     container.on('pointerdown', () => {
       if (this.selectedCharacterId) {
-        console.log('Selected character:', this.selectedCharacterId);
+        AudioEngine.sfx('confirm');
         this.scene.start('GameScene', { selectedCharacter: this.selectedCharacterId });
       }
     });

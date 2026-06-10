@@ -10,11 +10,14 @@ import { PlayerHUD } from '../ui/PlayerHUD';
 import { CardDialog } from '../ui/CardDialog';
 import { TurnLog } from '../ui/TurnLog';
 import { GAME_CONSTANTS } from '../config/constants';
-import { Card, CardChoice, Player } from '../types/game.types';
+import { Card, CardChoice, CardType, Player } from '../types/game.types';
 import EventBus from '../events/EventBus';
 import { ChaosResult } from './ChaosMinigameScene';
 import { isTouchDevice, actionPrompt } from '../utils/input-helpers';
 import { isPortrait } from '../utils/layout-helpers';
+import { setFacing } from '../utils/facing';
+import { createMuteButton } from '../ui/MuteButton';
+import AudioEngine from '../audio/AudioEngine';
 
 interface GameSceneData {
   selectedCharacter: string;
@@ -50,6 +53,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.portrait = isPortrait();
+    AudioEngine.playMusic('game');
 
     // Initialize game systems
     this.playerManager = new PlayerManager(this.selectedCharacterId);
@@ -99,41 +103,46 @@ export class GameScene extends Phaser.Scene {
     const H = this.cameras.main.height;
 
     // Die — small, bottom-left
-    this.die = new Die(this, 50, H - 50);
-    this.die.setScale(0.67);
+    this.die = new Die(this, 52, H - 50);
+    this.die.setScale(0.75);
     this.die.setDepth(10);
 
-    // Roll button — center-bottom
+    // Roll button — center-bottom, sized for thumbs
+    const btnW = 290;
+    const btnH = 68;
     const btnY = H - 50;
     const container = this.add.container(W / 2, btnY);
     const btnBg = this.add.graphics();
     btnBg.fillStyle(GAME_CONSTANTS.COLORS.PRIMARY, 1);
-    btnBg.fillRoundedRect(-120, -25, 240, 50, 8);
+    btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 8);
     container.add(btnBg);
 
     const text = this.add.text(0, 0, 'ROLL DIE', {
       fontFamily: '"Press Start 2P", cursive',
-      fontSize: '12px',
+      fontSize: '14px',
       color: '#ffffff',
     });
     text.setOrigin(0.5);
     container.add(text);
 
-    const hitArea = new Phaser.Geom.Rectangle(-120, -25, 240, 50);
-    container.setSize(240, 50);
+    // Containers with setSize() get hit-test coords offset by displayOrigin,
+    // so the hit rect must start at (0,0) to cover the visual button
+    const hitArea = new Phaser.Geom.Rectangle(0, 0, btnW, btnH);
+    container.setSize(btnW, btnH);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.SECONDARY, 1);
-      btnBg.fillRoundedRect(-120, -25, 240, 50, 8);
+      btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 8);
     });
     container.on('pointerout', () => {
       btnBg.clear();
       btnBg.fillStyle(GAME_CONSTANTS.COLORS.PRIMARY, 1);
-      btnBg.fillRoundedRect(-120, -25, 240, 50, 8);
+      btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 8);
     });
     container.on('pointerdown', () => {
+      AudioEngine.sfx('click');
       this.onRollDie();
     });
 
@@ -141,8 +150,8 @@ export class GameScene extends Phaser.Scene {
     this.rollButton.setVisible(false);
     this.rollButton.setDepth(10);
 
-    // Turn log — collapsible, between board and controls
-    this.turnLog = new TurnLog(this, 10, 680, W - 20, 0, true);
+    // Turn log strip — last 3 entries, expands into a full overlay
+    this.turnLog = new TurnLog(this, 10, 856, W - 20, 0, true);
     this.turnLog.setDepth(10);
   }
 
@@ -155,10 +164,12 @@ export class GameScene extends Phaser.Scene {
     players.forEach((player, index) => {
       const positions = this.calculatePiecePositions(players.length, startPos.x, startPos.y);
       const piece = new GamePiece(this, player, positions[index].x, positions[index].y);
+      piece.setDepth(5);
       this.gamePieces.set(player.id, piece);
     });
   }
 
+  // Tokens cluster in a small circle and simply crowd when sharing a square
   private calculatePiecePositions(
     numPieces: number,
     centerX: number,
@@ -225,7 +236,7 @@ export class GameScene extends Phaser.Scene {
     text.setOrigin(0.5);
     container.add(text);
 
-    const hitArea = new Phaser.Geom.Rectangle(-80, -30, 160, 60);
+    const hitArea = new Phaser.Geom.Rectangle(0, 0, 160, 60);
     container.setSize(160, 60);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
@@ -242,6 +253,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     container.on('pointerdown', () => {
+      AudioEngine.sfx('click');
       this.onRollDie();
     });
 
@@ -258,30 +270,39 @@ export class GameScene extends Phaser.Scene {
     const W = this.cameras.main.width;
     const H = this.cameras.main.height;
 
+    createMuteButton(this, this.portrait ? W - 32 : 30, this.portrait ? 28 : 30);
+
     this.add
-      .text(W / 2, this.portrait ? 15 : 20, 'THE DOOR', {
+      .text(W / 2, this.portrait ? 28 : 20, 'THE DOOR', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: this.portrait ? '10px' : '8px',
+        fontSize: this.portrait ? '16px' : '8px',
         color: '#99e550',
+        stroke: '#000000',
+        strokeThickness: 3,
       })
       .setOrigin(0.5)
       .setDepth(100);
 
     if (this.portrait) {
-      // MENU button bottom-right
-      const menuBtn = this.add.container(W - 50, H - 50);
+      // Title bar divider
+      this.add.rectangle(W / 2, 56, W, 2, 0x1c1c2b).setDepth(100);
+    }
+
+    if (this.portrait) {
+      // MENU button bottom-right, sized for thumbs
+      const menuBtn = this.add.container(W - 54, H - 50);
       const menuBg = this.add.graphics();
       menuBg.fillStyle(0x333355, 0.8);
-      menuBg.fillRoundedRect(-35, -20, 70, 40, 6);
+      menuBg.fillRoundedRect(-42, -28, 84, 56, 6);
       menuBtn.add(menuBg);
       const menuText = this.add.text(0, 0, 'MENU', {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: '9px',
         color: '#ffffff',
       }).setOrigin(0.5);
       menuBtn.add(menuText);
-      menuBtn.setSize(70, 40);
-      menuBtn.setInteractive(new Phaser.Geom.Rectangle(-35, -20, 70, 40), Phaser.Geom.Rectangle.Contains);
+      menuBtn.setSize(84, 56);
+      menuBtn.setInteractive(new Phaser.Geom.Rectangle(0, 0, 84, 56), Phaser.Geom.Rectangle.Contains);
       menuBtn.on('pointerdown', () => { this.scene.start('MenuScene'); });
       menuBtn.setDepth(100);
     } else if (isTouchDevice()) {
@@ -297,7 +318,7 @@ export class GameScene extends Phaser.Scene {
       }).setOrigin(0.5);
       menuBtn.add(menuText);
       menuBtn.setSize(80, 30);
-      menuBtn.setInteractive(new Phaser.Geom.Rectangle(-40, -15, 80, 30), Phaser.Geom.Rectangle.Contains);
+      menuBtn.setInteractive(new Phaser.Geom.Rectangle(0, 0, 80, 30), Phaser.Geom.Rectangle.Contains);
       menuBtn.on('pointerdown', () => { this.scene.start('MenuScene'); });
       menuBtn.setDepth(100);
     } else {
@@ -351,7 +372,10 @@ export class GameScene extends Phaser.Scene {
     this.rollButton?.setVisible(false);
 
     const currentPlayer = this.turnManager.getCurrentPlayer();
-    if (!currentPlayer) return;
+    if (!currentPlayer) {
+      this.isProcessingTurn = false;
+      return;
+    }
 
     // Roll die
     const rollValue = await this.die.roll();
@@ -433,6 +457,7 @@ export class GameScene extends Phaser.Scene {
     const stackIndex = playersOnSquare.findIndex((p) => p.id === playerId);
     const positions = this.calculatePiecePositions(playersOnSquare.length, basePos.x, basePos.y);
 
+    AudioEngine.sfx('move');
     await piece.moveToPosition(positions[stackIndex].x, positions[stackIndex].y);
 
     this.playerHUD?.updatePlayer(player);
@@ -447,19 +472,62 @@ export class GameScene extends Phaser.Scene {
 
     const winner = this.turnManager.getWinner();
     if (winner) {
-      const centerX = this.cameras.main.width / 2;
-      const centerY = this.cameras.main.height / 2;
+      AudioEngine.playMusic('victory');
+
+      const W = this.cameras.main.width;
+      const H = this.cameras.main.height;
+      const centerX = W / 2;
+      const centerY = H / 2;
 
       const overlay = this.add.graphics();
       overlay.fillStyle(0x000000, 0.8);
-      overlay.fillRect(0, 0, this.cameras.main.width, this.cameras.main.height);
+      overlay.fillRect(0, 0, W, H);
       overlay.setDepth(1000);
 
+      // Pixel confetti rain
+      const confettiColors = [0x5b6ee1, 0x99e550, 0xfbf236, 0xd95763, 0xbb9af7, 0xff9e64];
+      for (let i = 0; i < 40; i++) {
+        const piece = this.add.rectangle(
+          Math.random() * W,
+          -20 - Math.random() * H,
+          6,
+          6,
+          confettiColors[i % confettiColors.length]
+        );
+        piece.setDepth(1000);
+        this.tweens.add({
+          targets: piece,
+          y: H + 20,
+          angle: 360 * (Math.random() > 0.5 ? 1 : -1),
+          duration: 2500 + Math.random() * 2500,
+          delay: Math.random() * 1500,
+          repeat: -1,
+          onRepeat: () => {
+            piece.y = -20;
+            piece.x = Math.random() * W;
+          },
+        });
+      }
+
+      // Winner's character takes a bow
+      const winnerSprite = this.add.image(centerX, centerY - 130, winner.character.id);
+      winnerSprite.setScale(this.portrait ? 0.11 : 0.13);
+      winnerSprite.setDepth(1001);
+      setFacing(winnerSprite, 'center');
+      this.tweens.add({
+        targets: winnerSprite,
+        y: centerY - 145,
+        duration: 400,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Quad.easeOut',
+      });
+
       const gameOverSize = this.portrait ? '24px' : '32px';
-      const winnerSize = this.portrait ? '16px' : '20px';
+      const winnerSize = this.portrait ? '14px' : '20px';
 
       this.add
-        .text(centerX, centerY - 50, 'GAME OVER!', {
+        .text(centerX, centerY - 40, 'GAME OVER!', {
           fontFamily: '"Press Start 2P", cursive',
           fontSize: gameOverSize,
           color: '#ffffff',
@@ -467,7 +535,7 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setDepth(1001);
 
-      this.add
+      const winText = this.add
         .text(centerX, centerY + 20, `${winner.name} WINS!`, {
           fontFamily: '"Press Start 2P", cursive',
           fontSize: winnerSize,
@@ -475,6 +543,14 @@ export class GameScene extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setDepth(1001);
+
+      this.tweens.add({
+        targets: winText,
+        scale: 1.1,
+        duration: 400,
+        yoyo: true,
+        repeat: -1,
+      });
 
       this.add
         .text(centerX, centerY + 80, actionPrompt('TAP TO CONTINUE', 'Press SPACE to return to menu'), {
@@ -485,12 +561,15 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setDepth(1001);
 
-      this.input.keyboard?.once('keydown-SPACE', () => {
-        this.scene.start('MenuScene');
-      });
+      // Small delay so an accidental tap from the last action doesn't skip it
+      this.time.delayedCall(800, () => {
+        this.input.keyboard?.once('keydown-SPACE', () => {
+          this.scene.start('MenuScene');
+        });
 
-      this.input.once('pointerdown', () => {
-        this.scene.start('MenuScene');
+        this.input.once('pointerdown', () => {
+          this.scene.start('MenuScene');
+        });
       });
     }
   }
@@ -499,18 +578,22 @@ export class GameScene extends Phaser.Scene {
   // Helper methods
   private logAction(playerName: string, action: string): void {
     if (this.turnLog) {
-      this.turnLog.addEntry(playerName, action);
+      const player = this.playerManager?.getPlayers().find((p) => p.name === playerName);
+      const color = player
+        ? '#' + player.color.toString(16).padStart(6, '0')
+        : '#fbf236'; // GAME / CHAOS events
+      this.turnLog.addEntry(playerName, action, color);
     }
   }
 
   private showLightningRoundIndicator(): void {
     this.lightningRoundText = this.add.text(
       this.cameras.main.width / 2,
-      this.portrait ? 30 : 38,
-      'LIGHTNING ROUND',
+      this.portrait ? 48 : 38,
+      '⚡ LIGHTNING ROUND',
       {
         fontFamily: '"Press Start 2P", cursive',
-        fontSize: '8px',
+        fontSize: this.portrait ? '9px' : '8px',
         color: '#fbf236',
         stroke: '#000000',
         strokeThickness: 3,
@@ -525,7 +608,17 @@ export class GameScene extends Phaser.Scene {
       repeat: -1,
     });
 
+    AudioEngine.sfx('lightning');
     this.cameras.main.flash(400, 251, 242, 54);
+  }
+
+  private cardLabel(type: CardType): string {
+    switch (type) {
+      case 'judge-jury': return 'JUDGE OR JURY';
+      case 'summon-exile': return 'SUMMON OR EXILE';
+      case 'resurrect-reap': return 'RESURRECT OR REAP';
+      case 'chaos': return 'CHAOS';
+    }
   }
 
   // Card system methods
@@ -541,34 +634,59 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    await this.playCardFlyInAnimation();
+    this.logAction(player.name, `Drew ${this.cardLabel(card.type)}`);
+    await this.playCardFlyInAnimation(player, card);
 
-    const choice = await this.showCardChoice(player.id, card);
-    if (!choice) return;
+    if (card.type === 'chaos') {
+      // Per the rules, the drawer doesn't choose — they pick a target,
+      // and the TARGET decides between CAN and BALL.
+      await this.handleChaosCard(player.id);
+    } else {
+      const choice = await this.showCardChoice(player.id, card);
+      if (choice) {
+        await this.executeCardChoice(player.id, choice);
+      }
+    }
 
-    await this.executeCardChoice(player.id, choice);
+    // Return the card so the deck can reshuffle when it runs dry
+    this.cardDeck.discardCard(card);
   }
 
-  private async playCardFlyInAnimation(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      const deckX = this.cameras.main.width / 2;
-      const deckY = -50;
+  // Card flies in face-down, flips to reveal its type, then fades out
+  private async playCardFlyInAnimation(player: Player, card: Card): Promise<void> {
+    AudioEngine.sfx('cardDraw');
 
+    return new Promise<void>((resolve) => {
+      const W = this.cameras.main.width;
+      const deckX = W / 2;
+      const deckY = -60;
+
+      const cardW = 150;
+      const cardH = 100;
       const cardGraphics = this.add.graphics();
       cardGraphics.fillStyle(0x1a1a2e, 1);
-      cardGraphics.fillRoundedRect(-30, -40, 60, 80, 8);
+      cardGraphics.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 8);
       cardGraphics.lineStyle(3, 0xbb9af7, 1);
-      cardGraphics.strokeRoundedRect(-30, -40, 60, 80, 8);
+      cardGraphics.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 8);
 
-      const questionMark = this.add.text(0, 0, '?', {
+      const faceText = this.add.text(0, -10, '?', {
         fontFamily: '"Press Start 2P", cursive',
         fontSize: '24px',
         color: '#bb9af7',
+        align: 'center',
+        wordWrap: { width: cardW - 16 },
       });
-      questionMark.setOrigin(0.5);
+      faceText.setOrigin(0.5);
+
+      const drawnByText = this.add.text(0, 32, player.name, {
+        fontFamily: '"Press Start 2P", cursive',
+        fontSize: '7px',
+        color: '#ffffff',
+      });
+      drawnByText.setOrigin(0.5);
 
       const cardContainer = this.add.container(deckX, deckY);
-      cardContainer.add([cardGraphics, questionMark]);
+      cardContainer.add([cardGraphics, faceText, drawnByText]);
       cardContainer.setDepth(500);
       cardContainer.setAlpha(0);
 
@@ -576,17 +694,72 @@ export class GameScene extends Phaser.Scene {
         targets: cardContainer,
         y: this.cameras.main.height / 2,
         alpha: 1,
-        duration: 600,
+        duration: 500,
         ease: 'Back.easeOut',
         onComplete: () => {
+          // Flip: squash horizontally, swap the face, expand back
           this.tweens.add({
             targets: cardContainer,
-            scale: 1.2,
+            scaleX: 0,
+            duration: 150,
+            ease: 'Quad.easeIn',
+            onComplete: () => {
+              AudioEngine.sfx('cardReveal');
+              faceText.setText(this.cardLabel(card.type));
+              faceText.setFontSize(card.type === 'chaos' ? 16 : 10);
+              faceText.setColor(card.type === 'chaos' ? '#ff00ff' : '#ffcc00');
+              this.tweens.add({
+                targets: cardContainer,
+                scaleX: 1,
+                duration: 150,
+                ease: 'Quad.easeOut',
+                onComplete: () => {
+                  this.tweens.add({
+                    targets: cardContainer,
+                    scale: 1.15,
+                    alpha: 0,
+                    duration: 300,
+                    delay: 700,
+                    ease: 'Power2',
+                    onComplete: () => {
+                      cardContainer.destroy();
+                      resolve();
+                    },
+                  });
+                },
+              });
+            },
+          });
+        },
+      });
+    });
+  }
+
+  // Transient center-screen announcement (non-blocking dialogs for AI actions)
+  private showBanner(text: string): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const banner = this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2 - 40, text, {
+        fontFamily: '"Press Start 2P", cursive',
+        fontSize: '12px',
+        color: '#ffcc00',
+        stroke: '#000000',
+        strokeThickness: 4,
+        align: 'center',
+        wordWrap: { width: this.cameras.main.width - 80 },
+      }).setOrigin(0.5).setDepth(900).setAlpha(0);
+
+      this.tweens.add({
+        targets: banner,
+        alpha: 1,
+        duration: 200,
+        onComplete: () => {
+          this.tweens.add({
+            targets: banner,
             alpha: 0,
             duration: 300,
-            ease: 'Power2',
+            delay: 1100,
             onComplete: () => {
-              cardContainer.destroy();
+              banner.destroy();
               resolve();
             },
           });
@@ -650,8 +823,6 @@ export class GameScene extends Phaser.Scene {
         return card.optionA;
       }
       return card.optionB;
-    } else if (card.type === 'chaos') {
-      return (player.character.aimSkill || 0.5) > 0.6 ? card.optionA : card.optionB;
     }
 
     return card.optionA;
@@ -665,11 +836,6 @@ export class GameScene extends Phaser.Scene {
 
     console.log(`${player.name} chose: ${choice}`);
     this.logAction(player.name, `Chose ${choice.toUpperCase()}`);
-
-    if (choice === 'can' || choice === 'ball') {
-      await this.handleChaosCard(playerId, choice);
-      return;
-    }
 
     if (choice === 'resurrect') {
       const deadPlayers = this.playerManager.getAllPlayers().filter(p => p.isEliminated);
@@ -725,14 +891,19 @@ export class GameScene extends Phaser.Scene {
           if (piece) {
             if (affected.isEliminated) {
               piece.hide();
+              AudioEngine.sfx('death');
               this.logAction(affected.name, 'ELIMINATED!');
             } else {
               piece.show();
             }
           }
 
-          if (!affected.isEliminated && (choice === 'summon' || choice === 'exile' || choice === 'resurrect')) {
-            await this.updatePiecePosition(affectedId);
+          if (!affected.isEliminated) {
+            if (choice === 'exile') AudioEngine.sfx('jail');
+            if (choice === 'resurrect') AudioEngine.sfx('resurrect');
+            if (choice === 'summon' || choice === 'exile' || choice === 'resurrect') {
+              await this.updatePiecePosition(affectedId);
+            }
           }
         }
       }
@@ -763,28 +934,34 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private async handleChaosCard(playerId: string, choice: CardChoice): Promise<void> {
+  private async handleChaosCard(playerId: string): Promise<void> {
     if (!this.playerManager) return;
 
     const player = this.playerManager.getPlayer(playerId);
     if (!player) return;
 
     const targets = this.playerManager.getAllPlayers().filter(p => p.id !== playerId && !p.isEliminated);
-    const targetId = await this.selectTarget(player, 'Select a player for Chaos showdown', targets);
+    const targetId = await this.selectTarget(player, `${player.name} drew CHAOS! Choose a target`, targets);
 
     if (!targetId) return;
 
     const target = this.playerManager.getPlayer(targetId);
     if (!target) return;
 
-    const isThrower = choice === 'can';
-    const thrower = isThrower ? player : target;
-    const defender = isThrower ? target : player;
+    // The TARGET chooses their role: wear the can, or take the ball
+    const role = await this.chaosRoleChoice(player, target);
+    if (!role) return;
+
+    const thrower = role === 'can' ? player : target;
+    const defender = role === 'can' ? target : player;
     const distance = this.calculateChaosDistance(player, target);
 
-    const perspective = choice === 'can' ? 'ball' : 'can';
+    // POV: if the human throws, they aim (BALL view). If the human defends
+    // against an AI thrower, first-person CAN view. AI vs AI: spectate the throw.
+    const perspective: 'ball' | 'can' = !thrower.isAI ? 'ball' : !defender.isAI ? 'can' : 'ball';
 
-    this.logAction(player.name, `CHAOS! ${thrower.name} throws at ${defender.name} (dist: ${distance})`);
+    this.logAction(target.name, `Chose the ${role === 'can' ? 'CAN' : 'BALL'}!`);
+    this.logAction('CHAOS', `${thrower.name} throws at ${defender.name} (dist: ${distance})`);
 
     const result = await new Promise<ChaosResult>((resolve) => {
       EventBus.once('chaos-result', (data: ChaosResult) => {
@@ -800,13 +977,44 @@ export class GameScene extends Phaser.Scene {
         defenderSpriteKey: defender.character.id,
         distance,
         throwerIsHuman: !thrower.isAI,
+        throwerAimSkill: thrower.character.aimSkill ?? 0.5,
         perspective,
       });
     });
 
     this.scene.resume();
+    AudioEngine.playMusic('game');
 
     this.applyChaosResult(result);
+  }
+
+  private async chaosRoleChoice(drawer: Player, target: Player): Promise<'can' | 'ball' | null> {
+    const roleCard: Card = {
+      type: 'chaos',
+      optionA: 'can',
+      optionB: 'ball',
+      descriptionA: `Wear the can. ${drawer.name} throws at you.`,
+      descriptionB: `Take the ball and throw at ${drawer.name}.`,
+    };
+
+    if (target.isAI) {
+      // Confident throwers take the ball; everyone else risks the can
+      const role = (target.character.aimSkill ?? 0.5) > 0.6 ? 'ball' : 'can';
+      await this.showBanner(`${target.name} chooses the ${role.toUpperCase()}!`);
+      return role;
+    }
+
+    return new Promise((resolve) => {
+      new CardDialog(this, {
+        type: 'chooseCard',
+        card: roleCard,
+        title: 'CHAOS!',
+        message: `${drawer.name} targeted you!\nChoose your fate:`,
+        onOptionSelected: (option: 'A' | 'B') => {
+          resolve(option === 'A' ? 'can' : 'ball');
+        },
+      });
+    });
   }
 
   private calculateChaosDistance(playerA: Player, playerB: Player): number {
@@ -837,6 +1045,7 @@ export class GameScene extends Phaser.Scene {
       piece.hide();
     }
 
+    AudioEngine.sfx('death');
     this.logAction(loser.name, `ELIMINATED by Chaos! (${result.outcome})`);
   }
 

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_CONSTANTS } from '../config/constants';
+import AudioEngine from '../audio/AudioEngine';
 
 export class Die extends Phaser.GameObjects.Container {
   private dieGraphic: Phaser.GameObjects.Graphics;
@@ -45,10 +46,12 @@ export class Die extends Phaser.GameObjects.Container {
         callback: () => {
           const tempValue = Phaser.Math.Between(1, 6);
           this.setValue(tempValue);
+          AudioEngine.sfx('diceTick');
           rollCount++;
 
           if (rollCount >= 15) {
             this.setValue(finalValue);
+            AudioEngine.sfx('diceLand');
             resolve(finalValue);
           }
         },

@@ -71,34 +71,31 @@ export class BoardCalculations {
     return squares;
   }
 
-  // Portrait layout constants (600x1050 canvas)
-  private static readonly PORTRAIT_TOP_Y = 480;
-  private static readonly PORTRAIT_BOT_Y = 530;
+  // Portrait "climb" layout constants (600x1050 canvas):
+  // a single vertical column, BEGIN at the bottom climbing to DOOR at the top,
+  // centered between the two player rails.
+  static readonly PORTRAIT_TILE_W = 118;
+  static readonly PORTRAIT_TILE_H = 32;
+  static readonly PORTRAIT_TILE_GAP = 5;
+  static readonly PORTRAIT_BOARD_X = 300;   // column center
+  static readonly PORTRAIT_TOP_TILE_Y = 84; // DOOR (square 20) center
+  static readonly PORTRAIT_STEP = BoardCalculations.PORTRAIT_TILE_H + BoardCalculations.PORTRAIT_TILE_GAP;
 
   /**
-   * Calculate screen position for a board square in portrait mode (two rows)
+   * Calculate screen position for a board square in portrait mode
+   * (vertical climb: square 20 at the top, square 0 at the bottom)
    */
   static getSquarePositionPortrait(squareIndex: number): { x: number; y: number } {
-    const step = this.SQUARE_SIZE + this.SQUARE_SPACING;
-
-    // Jail: below square 10
+    // Jail: a pill attached to the right edge of square 10
     if (squareIndex === -1) {
       const sq10 = this.getSquarePositionPortrait(GAME_CONSTANTS.JAIL_SQUARE);
-      return { x: sq10.x, y: sq10.y + step };
+      return { x: sq10.x + this.PORTRAIT_TILE_W / 2 + 38, y: sq10.y };
     }
 
-    if (squareIndex <= 10) {
-      // Top row: squares 0-10 (11 squares)
-      const rowWidth = 11 * step;
-      const startX = Math.floor((600 - rowWidth) / 2) + this.SQUARE_SIZE / 2;
-      return { x: startX + squareIndex * step, y: this.PORTRAIT_TOP_Y };
-    } else {
-      // Bottom row: squares 11-20 (10 squares)
-      const col = squareIndex - 11;
-      const rowWidth = 10 * step;
-      const startX = Math.floor((600 - rowWidth) / 2) + this.SQUARE_SIZE / 2;
-      return { x: startX + col * step, y: this.PORTRAIT_BOT_Y };
-    }
+    return {
+      x: this.PORTRAIT_BOARD_X,
+      y: this.PORTRAIT_TOP_TILE_Y + (GAME_CONSTANTS.BOARD_SQUARES - squareIndex) * this.PORTRAIT_STEP,
+    };
   }
 
   /**

@@ -31,11 +31,15 @@ export class GamePiece extends Phaser.GameObjects.Container {
   private drawPiece(): void {
     this.pieceGraphic.clear();
 
-    // Draw smaller circular piece with player color
+    // Colored circle with the player's initial; the human's gets a white ring
     this.pieceGraphic.fillStyle(this.player.color, 1);
     this.pieceGraphic.fillCircle(0, 0, 10);
     this.pieceGraphic.lineStyle(2, 0xffffff, 1);
     this.pieceGraphic.strokeCircle(0, 0, 10);
+    if (!this.player.isAI) {
+      this.pieceGraphic.lineStyle(2, 0xffffff, 0.9);
+      this.pieceGraphic.strokeCircle(0, 0, 13);
+    }
   }
 
   async moveToPosition(targetX: number, targetY: number): Promise<void> {
